@@ -194,6 +194,7 @@ function personal(quiz, pid) {
   const a = quiz.current >= 0 ? p.answers[quiz.current] : null;
   return {
     name: p.name, score: p.score, correct: p.correct,
+    qIndex: quiz.current,
     rank: revealOk ? ranked(quiz).rankOf.get(pid) : null,
     players: playerCount(quiz),
     answer: a ? { c: a.c, ok: revealOk ? a.ok : undefined, pts: revealOk ? a.pts : undefined } : null,
@@ -251,7 +252,6 @@ function tickDirty(quiz) {
 
 function broadcastState(quiz, withPersonal) {
   const room = 'play:' + quiz.id;
-  io.to(room).emit('state', publicState(quiz));
   if (withPersonal) {
     const ids = io.sockets.adapter.rooms.get(room);
     if (ids) for (const sid of ids) {
@@ -259,6 +259,7 @@ function broadcastState(quiz, withPersonal) {
       if (s && s.data.pid) s.emit('you', personal(quiz, s.data.pid));
     }
   }
+  io.to(room).emit('state', publicState(quiz));
   hostDirty(quiz, 50);
 }
 

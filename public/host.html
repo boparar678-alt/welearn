@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Host Dashboard — WeLearn</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <div class="container">
+    <header class="topbar">
+      <a href="/" class="brand">
+        <span class="brand-mark">W</span>
+        <span class="brand-text">
+          <span class="brand-title">WeLearn</span>
+          <span class="brand-sub">by ASPIRA</span>
+        </span>
+      </a>
+      <div class="row-actions">
+        <a href="/" class="btn btn-secondary btn-sm">New Quiz</a>
+        <a id="exportCsvBtn" href="#" class="btn btn-secondary btn-sm hidden">Export Results CSV</a>
+      </div>
+    </header>
+
+    <!-- Host key fallback prompt if missing from URL -->
+    <section id="keyPromptCard" class="card hidden">
+      <h2>Enter Host Key</h2>
+      <p class="muted">Paste your private host key from the URL bookmark to access this dashboard.</p>
+      <form id="keyForm" class="row-actions" style="margin-top: 10px;">
+        <input id="keyInput" type="text" placeholder="Host key..." style="flex: 1; min-width: 220px;">
+        <button type="submit" class="btn btn-primary">Unlock Dashboard</button>
+      </form>
+    </section>
+
+    <div id="errorBanner" class="alert alert-error hidden"></div>
+
+    <div id="dashboard" class="hidden">
+      <!-- Top Summary + Join Info -->
+      <section class="card">
+        <div class="grid-2" style="align-items: center;">
+          <div>
+            <div class="row-actions" style="margin-bottom: 6px;">
+              <span id="statusBadge" class="badge badge-lobby">LOBBY</span>
+              <span class="muted"><span id="qTotalBadge">0</span> questions</span>
+            </div>
+            <h1 id="quizTitle" style="margin-bottom: 10px;">Quiz</h1>
+
+            <div class="grid-2" style="gap: 10px; margin-bottom: 14px;">
+              <div class="stat-box">
+                <div class="stat-label">Players Joined</div>
+                <div class="stat-value" id="playersJoined">0</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label">Online Now</div>
+                <div class="stat-value" id="playersOnline">0</div>
+              </div>
+            </div>
+
+            <div id="controlsRow" class="row-actions">
+              <button id="startBtn" class="btn btn-primary btn-lg hidden" type="button">Start Quiz</button>
+              <button id="skipBtn" class="btn btn-secondary hidden" type="button">Skip Ahead</button>
+              <button id="endBtn" class="btn btn-danger hidden" type="button">End Now</button>
+              <button id="resetBtn" class="btn btn-secondary hidden" type="button">Reset Players</button>
+              <button id="confirmResetBtn" class="btn btn-danger hidden" type="button">Confirm Reset</button>
+              <button id="cancelResetBtn" class="btn btn-secondary hidden" type="button">Cancel</button>
+            </div>
+            <div id="actionMsg" class="muted" style="margin-top: 8px; font-size: 0.85rem;"></div>
+          </div>
+
+          <div class="stat-box" style="display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 180px;">
+              <div class="stat-label">Join Code</div>
+              <div class="code-big" id="joinCode">------</div>
+              <div class="muted" style="font-size: 0.8rem; word-break: break-all; margin: 6px 0 10px;" id="joinUrlText"></div>
+              <div class="row-actions">
+                <button id="copyLinkBtn" type="button" class="btn btn-primary btn-sm">Copy Join Link</button>
+                <a id="openJoinLink" href="#" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">Open</a>
+              </div>
+            </div>
+            <div class="qr-box">
+              <img id="qrImg" alt="Join QR Code" src="">
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Live Question Card -->
+      <section id="liveCard" class="card hidden">
+        <div class="topbar" style="margin-bottom: 10px;">
+          <div>
+            <span id="phaseBadge" class="badge badge-running">QUESTION</span>
+            <span class="muted" id="qProgressText" style="margin-left: 8px;"></span>
+          </div>
+          <div style="font-size: 1.5rem; font-weight: 800; color: var(--accent);" id="timerText">--s</div>
+        </div>
+
+        <div id="countdownNotice" class="hidden" style="text-align: center; padding: 24px 0;">
+          <h2 style="margin-bottom: 6px;">Get Ready!</h2>
+          <p class="muted">First question starts in…</p>
+        </div>
+
+        <div id="liveQuestionBody" class="hidden">
+          <h2 id="liveQuestionText" style="font-size: 1.35rem;"></h2>
+          <img id="liveQuestionImg" class="q-image hidden" alt="Question illustration">
+
+          <div class="grid-4" style="margin: 14px 0;">
+            <div class="stat-box">
+              <div class="stat-label">Attempted</div>
+              <div class="stat-value" id="statAttempted">0</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Not Attempted</div>
+              <div class="stat-value" id="statNotAttempted">0</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Correct</div>
+              <div class="stat-value" id="statCorrect">0</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Accuracy</div>
+              <div class="stat-value" id="statAccuracy">0%</div>
+            </div>
+          </div>
+
+          <div class="progress-track" style="margin-bottom: 14px;">
+            <div id="attemptBar" class="progress-fill" style="width: 0%;"></div>
+          </div>
+
+          <div id="liveOptions"></div>
+        </div>
+      </section>
+
+      <!-- Attempt Tracking -->
+      <section id="attemptsCard" class="card hidden">
+        <div class="topbar" style="margin-bottom: 10px;">
+          <div>
+            <h2 style="margin: 0;">Attempts — <span id="attemptsTitle">Current Question</span></h2>
+            <p class="muted" id="attemptsSub" style="margin: 2px 0 0;"></p>
+          </div>
+          <div class="row-actions">
+            <div class="tabs">
+              <button id="tabAttempted" class="tab-btn active" type="button">Who attempted (<span id="tabAttemptedCount">0</span>)</button>
+              <button id="tabNotAttempted" class="tab-btn" type="button">Not attempted (<span id="tabNotAttemptedCount">0</span>)</button>
+            </div>
+            <input id="attemptSearch" type="search" placeholder="Search player…" style="width: 190px;">
+          </div>
+        </div>
+
+        <div id="attemptedPane" class="table-wrap" style="max-height: 320px; overflow-y: auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th>Picked</th>
+                <th>Result</th>
+                <th>Time</th>
+                <th>Points</th>
+              </tr>
+            </thead>
+            <tbody id="attemptedBody"></tbody>
+          </table>
+        </div>
+
+        <div id="notAttemptedPane" class="table-wrap hidden" style="max-height: 320px; overflow-y: auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="notAttemptedBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Leaderboard & Question Breakdown -->
+      <div class="grid-2" style="margin-top: 18px;">
+        <section class="card" style="margin-top: 0;">
+          <div class="topbar" style="margin-bottom: 8px;">
+            <h2 style="margin: 0;">Live Leaderboard</h2>
+            <input id="lbSearch" type="search" placeholder="Search player…" style="width: 180px;">
+          </div>
+          <div class="table-wrap" style="max-height: 420px; overflow-y: auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Player</th>
+                  <th>Score</th>
+                  <th>Correct</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="leaderboardBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card" style="margin-top: 0;">
+          <h2 style="margin-bottom: 4px;">Questions Breakdown</h2>
+          <p class="muted" style="margin-top: 0;">Click any question to inspect who attempted it.</p>
+          <div class="table-wrap" style="max-height: 420px; overflow-y: auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Question</th>
+                  <th>Attempted</th>
+                  <th>Correct</th>
+                  <th>Accuracy</th>
+                </tr>
+              </thead>
+              <tbody id="questionsBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const LETTERS = 'ABCDEF';
+      const COLORS = ['#e21b3c', '#1368ce', '#d89e00', '#26890c', '#7b2cbf', '#e66a00'];
+
+      const parts = window.location.pathname.split('/').filter(Boolean);
+      const quizId = parts[1] || '';
+
+      function getKeyFromUrl() {
+        const hash = window.location.hash || '';
+        const hm = hash.match(/key=([^&]+)/);
+        if (hm) return decodeURIComponent(hm[1]);
+        const qs = new URLSearchParams(window.location.search);
+        return qs.get('key') || '';
+      }
+
+      let hostKey = getKeyFromUrl();
+      let state = null;
+      let clockOffsetMs = 0;
+      let inspectedQuestion = null; // { qIndex, attempts, notAttempted, question }
+      let activeAttemptTab = 'attempted';
+      let socket = null;
+
+      const keyPromptCard = document.getElementById('keyPromptCard');
+      const keyForm = document.getElementById('keyForm');
+      const keyInput = document.getElementById('keyInput');
+      const errorBanner = document.getElementById('errorBanner');
+      const dashboard = document.getElementById('dashboard');
+
+      const statusBadge = document.getElementById('statusBadge');
+      const qTotalBadge = document.getElementById('qTotalBadge');
+      const quizTitle = document.getElementById('quizTitle');
+      const playersJoined = document.getElementById('playersJoined');
+      const playersOnline = document.getElementById('playersOnline');
+      const joinCode = document.getElementById('joinCode');
+      const joinUrlText = document.getElementById('joinUrlText');
+      const copyLinkBtn = document.getElementById('copyLinkBtn');
+      const openJoinLink = document.getElementById('openJoinLink');
+      const qrImg = document.getElementById('qrImg');
+      const exportCsvBtn = document.getElementById('exportCsvBtn');
+
+      const startBtn = document.getElementById('startBtn');
+      const skipBtn = document.getElementById('skipBtn');
+      const endBtn = document.getElementById('endBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const confirmResetBtn = document.getElementById('confirmResetBtn');
+      const cancelResetBtn = document.getElementById('cancelResetBtn');
+      const actionMsg = document.getElementById('actionMsg');
+
+      const liveCard = document.getElementById('liveCard');
+      const phaseBadge = document.getElementById('phaseBadge');
+      const qProgressText = document.getElementById('qProgressText');
+      const timerText = document.getElementById('timerText');
+      const countdownNotice = document.getElementById('countdownNotice');
+      const liveQuestionBody = document.getElementById('liveQuestionBody');
+      const liveQuestionText = document.getElementById('liveQuestionText');
+      const liveQuestionImg = document.getElementById('liveQuestionImg');
+      const statAttempted = document.getElementById('statAttempted');
+      const statNotAttempted = document.getElementById('statNotAttempted');
+      const statCorrect = document.getElementById('statCorrect');
+      const statAccuracy = document.getElementById('statAccuracy');
+      const attemptBar = document.getElementById('attemptBar');
+      const liveOptions = document.getElementById('liveOptions');
+
+      const attemptsCard = document.getElementById('attemptsCard');
+      const attemptsTitle = document.getElementById('attemptsTitle');
+      const attemptsSub = document.getElementById('attemptsSub');
+      const tabAttempted = document.getElementById('tabAttempted');
+      const tabNotAttempted = document.getElementById('tabNotAttempted');
+      const tabAttemptedCount = document.getElementById('tabAttemptedCount');
+      const tabNotAttemptedCount = document.getElementById('tabNotAttemptedCount');
+      const attemptSearch = document.getElementById('attemptSearch');
+      const attemptedPane = document.getElementById('attemptedPane');
+      const notAttemptedPane = document.getElementById('notAttemptedPane');
+      const attemptedBody = document.getElementById('attemptedBody');
+      const notAttemptedBody = document.getElementById('notAttemptedBody');
+
+      const lbSearch = document.getElementById('lbSearch');
+      const leaderboardBody = document.getElementById('leaderboardBody');
+      const questionsBody = document.getElementById('questionsBody');
+
+      function esc(s) {
+        return String(s ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      function showError(msg) {
+        errorBanner.textContent = msg;
+        errorBanner.classList.remove('hidden');
+      }
+
+      function connectHost() {
+        errorBanner.classList.add('hidden');
+        if (!quizId) { showError('Missing quiz ID in URL.'); return; }
+        if (!hostKey) { keyPromptCard.classList.remove('hidden'); return; }
+        keyPromptCard.classList.add('hidden');
+
+        if (!socket) {
+          socket = io();
+          socket.on('connect', joinAsHost);
+          socket.on('host:state', (newState) => applyState(newState));
+        } else {
+          joinAsHost();
+        }
+      }
+
+      function joinAsHost() {
+        socket.emit('host:join', { id: quizId, key: hostKey }, (res) => {
+          if (!res || res.error) {
+            showError((res && res.error) || 'Could not authenticate host.');
+            dashboard.classList.add('hidden');
+            keyPromptCard.classList.remove('hidden');
+            return;
+          }
+          dashboard.classList.remove('hidden');
+          applyState(res.state);
+        });
+      }
+
+      keyForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        hostKey = keyInput.value.trim();
+        if (hostKey) {
+          window.location.hash = 'key=' + encodeURIComponent(hostKey);
+          connectHost();
+        }
+      });
+
+      function applyState(s) {
+        state = s;
+        if (s.now) clockOffsetMs = s.now - Date.now();
+
+        quizTitle.textContent = s.title;
+        qTotalBadge.textContent = s.total;
+        playersJoined.textContent = s.players;
+        playersOnline.textContent = s.online;
+
+        statusBadge.textContent = s.status.toUpperCase();
+        statusBadge.className = 'badge badge-' + s.status;
+
+        const joinUrl = window.location.origin + '/join/' + encodeURIComponent(s.code);
+        joinCode.textContent = s.code;
+        joinUrlText.textContent = joinUrl;
+        openJoinLink.href = joinUrl;
+        const qrSrc = '/api/qr.svg?text=' + encodeURIComponent(joinUrl);
+        if (qrImg.getAttribute('src') !== qrSrc) qrImg.src = qrSrc;
+
+        exportCsvBtn.href = '/api/quizzes/' + encodeURIComponent(s.id) + '/results.csv?key=' + encodeURIComponent(hostKey);
+        exportCsvBtn.classList.remove('hidden');
+
+        // Controls
+        startBtn.classList.toggle('hidden', s.status !== 'lobby');
+        skipBtn.classList.toggle('hidden', s.status !== 'running');
+        endBtn.classList.toggle('hidden', s.status !== 'running');
+        resetBtn.classList.toggle('hidden', s.status === 'lobby' && s.players === 0);
+
+        if (s.status === 'running') {
+          liveCard.classList.remove('hidden');
+          if (s.phase === 'countdown') {
+            phaseBadge.textContent = 'COUNTDOWN';
+            qProgressText.textContent = 'Starting…';
+            countdownNotice.classList.remove('hidden');
+            liveQuestionBody.classList.add('hidden');
+          } else {
+            countdownNotice.classList.add('hidden');
+            liveQuestionBody.classList.remove('hidden');
+            phaseBadge.textContent = s.phase === 'reveal' ? 'REVEAL' : 'LIVE QUESTION';
+            qProgressText.textContent = 'Question ' + (s.qIndex + 1) + ' of ' + s.total;
+
+            liveQuestionText.textContent = s.question.text;
+            if (s.question.image) {
+              liveQuestionImg.src = s.question.image;
+              liveQuestionImg.classList.remove('hidden');
+            } else {
+              liveQuestionImg.classList.add('hidden');
+            }
+
+            const attempted = s.attempted || 0;
+            const notAtt = Math.max(0, s.players - attempted);
+            const corr = s.correctCount || 0;
+            const acc = attempted > 0 ? Math.round((corr / attempted) * 100) : 0;
+
+            statAttempted.textContent = attempted;
+            statNotAttempted.textContent = notAtt;
+            statCorrect.textContent = corr;
+            statAccuracy.textContent = acc + '%';
+            attemptBar.style.width = (s.players > 0 ? Math.round((attempted / s.players) * 100) : 0) + '%';
+
+            const dist = s.dist || [];
+            liveOptions.innerHTML = s.question.options.map((opt, i) => {
+              const count = dist[i] || 0;
+              const pct = attempted > 0 ? Math.round((count / attempted) * 100) : 0;
+              const isCorr = i === s.answer;
+              return '<div class="host-opt ' + (isCorr ? 'is-correct' : '') + '">' +
+                '<div class="host-opt-bar" style="width:' + pct + '%; background:' + COLORS[i % COLORS.length] + ';"></div>' +
+                '<div class="host-opt-inner">' +
+                  '<div><strong>' + LETTERS[i] + '.</strong> ' + esc(opt) + (isCorr ? ' <span class="badge badge-good" style="margin-left:6px;">Answer</span>' : '') + '</div>' +
+                  '<div><strong>' + count + '</strong> <span class="muted">(' + pct + '%)</span></div>' +
+                '</div>' +
+                '</div>';
+            }).join('');
+          }
+        } else {
+          liveCard.classList.add('hidden');
+        }
+
+        // If live question is active and user isn't manually inspecting another question, show current attempts
+        if (s.status === 'running' && s.current) {
+          if (!inspectedQuestion || inspectedQuestion.liveAuto) {
+            inspectedQuestion = {
+              liveAuto: true,
+              qIndex: s.current.qIndex,
+              attempts: s.current.attempts,
+              notAttempted: s.current.notAttempted,
+              question: s.questions[s.current.qIndex],
+            };
+          }
+        }
+
+        renderAttempts();
+        renderLeaderboard();
+        renderQuestionsTable();
+      }
+
+      function renderAttempts() {
+        if (!inspectedQuestion) {
+          attemptsCard.classList.add('hidden');
+          return;
+        }
+        attemptsCard.classList.remove('hidden');
+        const qi = inspectedQuestion.qIndex;
+        const q = inspectedQuestion.question;
+        attemptsTitle.textContent = 'Q' + (qi + 1);
+        attemptsSub.textContent = q ? q.q : '';
+
+        const query = attemptSearch.value.trim().toLowerCase();
+        const att = (inspectedQuestion.attempts || []).filter((a) => !query || a.name.toLowerCase().includes(query));
+        const notAtt = (inspectedQuestion.notAttempted || []).filter((p) => !query || p.name.toLowerCase().includes(query));
+
+        tabAttemptedCount.textContent = (inspectedQuestion.attempts || []).length;
+        tabNotAttemptedCount.textContent = (inspectedQuestion.notAttempted || []).length;
+
+        attemptedBody.innerHTML = att.length === 0
+          ? '<tr><td colspan="5" class="muted">No attempts yet.</td></tr>'
+          : att.map((a) => '<tr>' +
+              '<td>' + esc(a.name) + '</td>' +
+              '<td><strong>' + (LETTERS[a.c] || '?') + '</strong></td>' +
+              '<td>' + (a.ok ? '<span class="badge badge-good">Correct</span>' : '<span class="badge badge-bad">Wrong</span>') + '</td>' +
+              '<td>' + (a.ms / 1000).toFixed(2) + 's</td>' +
+              '<td>+' + a.pts + '</td>' +
+              '</tr>').join('');
+
+        notAttemptedBody.innerHTML = notAtt.length === 0
+          ? '<tr><td colspan="2" class="muted">Everyone has attempted!</td></tr>'
+          : notAtt.map((p) => '<tr>' +
+              '<td>' + esc(p.name) + '</td>' +
+              '<td><span class="dot ' + (p.online ? 'online' : '') + '"></span> ' + (p.online ? 'Online' : 'Offline') + '</td>' +
+              '</tr>').join('');
+      }
+
+      function renderLeaderboard() {
+        if (!state) return;
+        const query = lbSearch.value.trim().toLowerCase();
+        const rows = (state.leaderboard || []).filter((p) => !query || p.name.toLowerCase().includes(query));
+        leaderboardBody.innerHTML = rows.length === 0
+          ? '<tr><td colspan="6" class="muted">No players yet. Share the join link or QR code!</td></tr>'
+          : rows.map((p) => '<tr>' +
+              '<td><strong>#' + p.rank + '</strong></td>' +
+              '<td>' + esc(p.name) + '</td>' +
+              '<td><strong>' + p.score + '</strong></td>' +
+              '<td>' + p.correct + '/' + p.answered + '</td>' +
+              '<td><span class="dot ' + (p.online ? 'online' : '') + '"></span></td>' +
+              '<td><button type="button" class="btn btn-danger btn-sm kick-btn" data-pid="' + esc(p.pid) + '">Remove</button></td>' +
+              '</tr>').join('');
+      }
+
+      function renderQuestionsTable() {
+        if (!state) return;
+        questionsBody.innerHTML = (state.questions || []).map((q, i) => {
+          const pq = (state.perQuestion && state.perQuestion[i]) || { attempted: 0, correct: 0 };
+          const acc = pq.attempted > 0 ? Math.round((pq.correct / pq.attempted) * 100) + '%' : '—';
+          const isCur = state.status === 'running' && state.qIndex === i;
+          return '<tr class="clickable ' + (isCur ? 'highlight-row' : '') + '" data-qi="' + i + '">' +
+            '<td>' + (i + 1) + '</td>' +
+            '<td>' + esc(q.q) + '</td>' +
+            '<td>' + pq.attempted + '</td>' +
+            '<td>' + pq.correct + '</td>' +
+            '<td>' + acc + '</td>' +
+            '</tr>';
+        }).join('');
+      }
+
+      // Click question row to inspect attempts
+      questionsBody.addEventListener('click', (e) => {
+        const tr = e.target.closest('tr[data-qi]');
+        if (!tr || !socket) return;
+        const qi = parseInt(tr.getAttribute('data-qi'), 10);
+        socket.emit('host:attempts', { qIndex: qi }, (res) => {
+          if (res && res.ok) {
+            inspectedQuestion = {
+              liveAuto: false,
+              qIndex: res.qIndex,
+              attempts: res.attempts,
+              notAttempted: res.notAttempted,
+              question: res.question,
+            };
+            renderAttempts();
+            attemptsCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        });
+      });
+
+      // Kick player
+      leaderboardBody.addEventListener('click', (e) => {
+        const btn = e.target.closest('.kick-btn');
+        if (!btn || !socket) return;
+        const pid = btn.getAttribute('data-pid');
+        socket.emit('host:kick', { pid }, (res) => {
+          if (res && res.error) actionMsg.textContent = res.error;
+        });
+      });
+
+      // Tabs & search
+      tabAttempted.addEventListener('click', () => {
+        activeAttemptTab = 'attempted';
+        tabAttempted.classList.add('active');
+        tabNotAttempted.classList.remove('active');
+        attemptedPane.classList.remove('hidden');
+        notAttemptedPane.classList.add('hidden');
+      });
+      tabNotAttempted.addEventListener('click', () => {
+        activeAttemptTab = 'not';
+        tabNotAttempted.classList.add('active');
+        tabAttempted.classList.remove('active');
+        notAttemptedPane.classList.remove('hidden');
+        attemptedPane.classList.add('hidden');
+      });
+      attemptSearch.addEventListener('input', renderAttempts);
+      lbSearch.addEventListener('input', renderLeaderboard);
+
+      // Host action buttons
+      startBtn.addEventListener('click', () => {
+        actionMsg.textContent = '';
+        socket.emit('host:start', null, (res) => {
+          if (res && res.error) actionMsg.textContent = res.error;
+        });
+      });
+      skipBtn.addEventListener('click', () => {
+        inspectedQuestion = null;
+        socket.emit('host:skip', null, (res) => {
+          if (res && res.error) actionMsg.textContent = res.error;
+        });
+      });
+      endBtn.addEventListener('click', () => {
+        socket.emit('host:end', null, (res) => {
+          if (res && res.error) actionMsg.textContent = res.error;
+        });
+      });
+
+      resetBtn.addEventListener('click', () => {
+        resetBtn.classList.add('hidden');
+        confirmResetBtn.classList.remove('hidden');
+        cancelResetBtn.classList.remove('hidden');
+      });
+      cancelResetBtn.addEventListener('click', () => {
+        confirmResetBtn.classList.add('hidden');
+        cancelResetBtn.classList.add('hidden');
+        resetBtn.classList.remove('hidden');
+      });
+      confirmResetBtn.addEventListener('click', () => {
+        confirmResetBtn.classList.add('hidden');
+        cancelResetBtn.classList.add('hidden');
+        inspectedQuestion = null;
+        socket.emit('host:reset', null, (res) => {
+          actionMsg.textContent = res && res.ok ? 'Quiz reset. Ready for a new session.' : (res && res.error) || '';
+        });
+      });
+
+      copyLinkBtn.addEventListener('click', async () => {
+        const url = joinUrlText.textContent;
+        try {
+          await navigator.clipboard.writeText(url);
+          copyLinkBtn.textContent = 'Copied!';
+          setTimeout(() => { copyLinkBtn.textContent = 'Copy Join Link'; }, 1500);
+        } catch {
+          actionMsg.textContent = 'Copy link: ' + url;
+        }
+      });
+
+      // Smooth timer ticker
+      setInterval(() => {
+        if (!state || state.status !== 'running' || !state.endsAt) {
+          timerText.textContent = '--s';
+          return;
+        }
+        const remainingMs = Math.max(0, state.endsAt - (Date.now() + clockOffsetMs));
+        timerText.textContent = Math.ceil(remainingMs / 1000) + 's';
+      }, 200);
+
+      connectHost();
+    })();
+  </script>
+</body>
+</html>

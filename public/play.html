@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Play — WeLearn</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <div class="container-narrow">
+    <header class="topbar">
+      <a href="/" class="brand">
+        <span class="brand-mark">W</span>
+        <span class="brand-text">
+          <span class="brand-title">WeLearn</span>
+          <span class="brand-sub">by ASPIRA</span>
+        </span>
+      </a>
+      <span id="playerHeaderBadge" class="badge hidden"></span>
+    </header>
+
+    <!-- Join Screen -->
+    <section id="joinCard" class="card">
+      <h1 id="joinQuizTitle">Join Quiz</h1>
+      <p id="joinQuizMeta" class="muted">Enter the quiz code and your name to start playing.</p>
+
+      <form id="joinForm" style="margin-top: 14px;">
+        <div id="codeFieldWrap">
+          <label class="field-label" for="codeInput">Quiz Code</label>
+          <input id="codeInput" type="text" maxlength="8" placeholder="ABC123" style="text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;">
+        </div>
+        <div style="margin-top: 12px;">
+          <label class="field-label" for="nameInput">Your Name</label>
+          <input id="nameInput" type="text" maxlength="30" placeholder="Enter your nickname" autocomplete="nickname">
+        </div>
+        <div id="joinErr" class="alert alert-error hidden"></div>
+        <button id="joinBtn" type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 16px;">Join Quiz</button>
+      </form>
+    </section>
+
+    <!-- Lobby Screen -->
+    <section id="lobbyCard" class="card hidden" style="text-align: center; padding: 34px 20px;">
+      <span class="badge badge-lobby" style="margin-bottom: 10px;">IN THE LOBBY</span>
+      <h1 id="lobbyTitle">Quiz</h1>
+      <p class="muted" style="margin-bottom: 18px;">Waiting for the host to press Start…</p>
+      <div class="stat-box" style="display: inline-block; min-width: 180px;">
+        <div class="stat-label">Players Joined</div>
+        <div class="stat-value" id="lobbyPlayers">1</div>
+      </div>
+    </section>
+
+    <!-- Countdown Screen -->
+    <section id="countdownCard" class="card hidden" style="text-align: center; padding: 34px 20px;">
+      <h1>Get Ready!</h1>
+      <div class="countdown-circle" id="countdownNum">3</div>
+      <p class="muted">Question 1 is about to begin…</p>
+    </section>
+
+    <!-- Question Screen -->
+    <section id="questionCard" class="card hidden">
+      <div class="topbar" style="margin-bottom: 10px;">
+        <span class="badge badge-lobby" id="qCounter">Q 1 / 10</span>
+        <span style="font-size: 1.35rem; font-weight: 800; color: var(--accent);" id="qTimer">20s</span>
+      </div>
+      <div class="progress-track" style="margin-bottom: 14px;">
+        <div id="qTimerBar" class="progress-fill" style="width: 100%;"></div>
+      </div>
+
+      <h2 id="qText" style="font-size: 1.25rem; margin-bottom: 8px;"></h2>
+      <img id="qImg" class="q-image hidden" alt="Question illustration">
+
+      <div id="lockedBanner" class="alert alert-ok hidden" style="text-align: center; font-weight: 700;">
+        Answer locked in! Waiting for other players…
+      </div>
+
+      <div id="answerGrid" class="answer-grid"></div>
+      <p id="answeredCountNote" class="muted" style="text-align: center; margin: 14px 0 0; font-size: 0.82rem;"></p>
+    </section>
+
+    <!-- Reveal Screen -->
+    <section id="revealCard" class="card hidden">
+      <div class="topbar" style="margin-bottom: 10px;">
+        <span class="badge" id="revealQLabel">Q 1</span>
+        <span class="muted" id="revealNextTimer">Next in --s</span>
+      </div>
+
+      <div id="resultBanner" class="alert" style="text-align: center; font-size: 1.1rem; font-weight: 700; margin-top: 0;"></div>
+
+      <div class="stat-box" style="margin-top: 12px;">
+        <div class="stat-label">Correct Answer</div>
+        <div id="correctAnswerText" style="font-size: 1.1rem; font-weight: 700; margin-top: 4px; color: #93f5bc;"></div>
+        <div id="explanationText" class="muted hidden" style="margin-top: 6px; font-size: 0.88rem;"></div>
+      </div>
+
+      <div id="revealMyStats" class="grid-2" style="margin-top: 12px;">
+        <div class="stat-box">
+          <div class="stat-label">Your Score</div>
+          <div class="stat-value" id="revealMyScore">0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Your Rank</div>
+          <div class="stat-value" id="revealMyRank">-</div>
+        </div>
+      </div>
+
+      <h3 style="margin-top: 18px;">Answer Distribution</h3>
+      <div id="revealDist"></div>
+
+      <h3 style="margin-top: 18px;">Top 10 Leaderboard</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>#</th><th>Player</th><th>Score</th></tr>
+          </thead>
+          <tbody id="revealTopBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Ended / Podium Screen -->
+    <section id="endedCard" class="card hidden">
+      <div style="text-align: center;">
+        <span class="badge badge-ended">QUIZ FINISHED</span>
+        <h1 id="endedTitle" style="margin-top: 8px;">Final Results</h1>
+      </div>
+
+      <div class="grid-2" style="margin-top: 12px;">
+        <div class="stat-box" style="text-align: center;">
+          <div class="stat-label">Your Final Rank</div>
+          <div class="stat-value" id="finalRank">-</div>
+        </div>
+        <div class="stat-box" style="text-align: center;">
+          <div class="stat-label">Your Final Score</div>
+          <div class="stat-value" id="finalScore">0</div>
+        </div>
+      </div>
+
+      <div id="podium" class="podium"></div>
+
+      <h3 style="margin-top: 18px;">Final Top 10</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>#</th><th>Player</th><th>Correct</th><th>Score</th></tr>
+          </thead>
+          <tbody id="finalTopBody"></tbody>
+        </table>
+      </div>
+
+      <div style="text-align: center; margin-top: 20px;">
+        <a href="/" class="btn btn-secondary">Back to Home</a>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    (function () {
+      const LETTERS = 'ABCDEF';
+      const COLORS = ['#e21b3c', '#1368ce', '#d89e00', '#26890c', '#7b2cbf', '#e66a00'];
+
+      const pathParts = window.location.pathname.split('/').filter(Boolean);
+      const urlCode = (pathParts[1] || '').toUpperCase().trim();
+
+      const joinCard = document.getElementById('joinCard');
+      const joinQuizTitle = document.getElementById('joinQuizTitle');
+      const joinQuizMeta = document.getElementById('joinQuizMeta');
+      const codeFieldWrap = document.getElementById('codeFieldWrap');
+      const codeInput = document.getElementById('codeInput');
+      const nameInput = document.getElementById('nameInput');
+      const joinForm = document.getElementById('joinForm');
+      const joinErr = document.getElementById('joinErr');
+      const joinBtn = document.getElementById('joinBtn');
+
+      const playerHeaderBadge = document.getElementById('playerHeaderBadge');
+      const lobbyCard = document.getElementById('lobbyCard');
+      const lobbyTitle = document.getElementById('lobbyTitle');
+      const lobbyPlayers = document.getElementById('lobbyPlayers');
+      const countdownCard = document.getElementById('countdownCard');
+      const countdownNum = document.getElementById('countdownNum');
+      const questionCard = document.getElementById('questionCard');
+      const qCounter = document.getElementById('qCounter');
+      const qTimer = document.getElementById('qTimer');
+      const qTimerBar = document.getElementById('qTimerBar');
+      const qText = document.getElementById('qText');
+      const qImg = document.getElementById('qImg');
+      const lockedBanner = document.getElementById('lockedBanner');
+      const answerGrid = document.getElementById('answerGrid');
+      const answeredCountNote = document.getElementById('answeredCountNote');
+
+      const revealCard = document.getElementById('revealCard');
+      const revealQLabel = document.getElementById('revealQLabel');
+      const revealNextTimer = document.getElementById('revealNextTimer');
+      const resultBanner = document.getElementById('resultBanner');
+      const correctAnswerText = document.getElementById('correctAnswerText');
+      const explanationText = document.getElementById('explanationText');
+      const revealMyScore = document.getElementById('revealMyScore');
+      const revealMyRank = document.getElementById('revealMyRank');
+      const revealDist = document.getElementById('revealDist');
+      const revealTopBody = document.getElementById('revealTopBody');
+
+      const endedCard = document.getElementById('endedCard');
+      const endedTitle = document.getElementById('endedTitle');
+      const finalRank = document.getElementById('finalRank');
+      const finalScore = document.getElementById('finalScore');
+      const podium = document.getElementById('podium');
+      const finalTopBody = document.getElementById('finalTopBody');
+
+      let activeCode = urlCode;
+      let pid = null;
+      let state = null;
+      let you = null;
+      let selectedChoice = null;
+      let pendingChoiceQ = -1;
+      let lastRenderedQ = -1;
+      let lastRenderedPhase = null;
+      let clockOffsetMs = 0;
+      let socket = null;
+
+      function esc(s) {
+        return String(s ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      function pidStorageKey(code) {
+        return 'quizlive_pid_' + code.toUpperCase();
+      }
+
+      function hideAllScreens() {
+        [joinCard, lobbyCard, countdownCard, questionCard, revealCard, endedCard].forEach((el) => el.classList.add('hidden'));
+      }
+
+      async function lookupQuiz(code) {
+        try {
+          const res = await fetch('/api/join/' + encodeURIComponent(code));
+          const data = await res.json();
+          if (res.ok) {
+            joinQuizTitle.textContent = data.title;
+            joinQuizMeta.textContent = data.total + ' questions · ' + data.players + ' player(s) joined';
+          }
+        } catch {}
+      }
+
+      function initSocket() {
+        if (socket) return socket;
+        socket = io();
+        socket.on('connect', () => {
+          if (activeCode && pid) {
+            emitJoin(activeCode, '', pid, true);
+          }
+        });
+        socket.on('state', (s) => {
+          state = s;
+          if (s.now) clockOffsetMs = s.now - Date.now();
+          render();
+        });
+        socket.on('you', (y) => {
+          you = y;
+          render();
+        });
+        socket.on('tick', (t) => {
+          if (!state) return;
+          state.players = t.players;
+          lobbyPlayers.textContent = t.players;
+          if (typeof t.answered === 'number') {
+            answeredCountNote.textContent = t.answered + ' of ' + t.players + ' answered';
+          }
+        });
+        socket.on('kicked', () => {
+          if (activeCode) localStorage.removeItem(pidStorageKey(activeCode));
+          pid = null; state = null; you = null; selectedChoice = null; pendingChoiceQ = -1;
+          hideAllScreens();
+          joinCard.classList.remove('hidden');
+          joinErr.textContent = 'You were removed from this quiz by the host.';
+          joinErr.classList.remove('hidden');
+          playerHeaderBadge.classList.add('hidden');
+        });
+        socket.on('reset', () => {
+          if (activeCode) localStorage.removeItem(pidStorageKey(activeCode));
+          pid = null; state = null; you = null; selectedChoice = null; pendingChoiceQ = -1;
+          hideAllScreens();
+          joinCard.classList.remove('hidden');
+          joinErr.textContent = 'The host reset the quiz. Enter your name to join the new session.';
+          joinErr.classList.remove('hidden');
+          playerHeaderBadge.classList.add('hidden');
+        });
+        return socket;
+      }
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && activeCode && pid && socket) {
+          if (!socket.connected) socket.connect();
+          else emitJoin(activeCode, '', pid, true);
+        }
+      });
+
+      function emitJoin(code, name, savedPid, silent) {
+        const s = initSocket();
+        joinErr.classList.add('hidden');
+        s.emit('player:join', { code, name, pid: savedPid }, (res) => {
+          if (!res || res.error) {
+            if (savedPid) {
+              localStorage.removeItem(pidStorageKey(code));
+              pid = null;
+            }
+            if (!silent) {
+              joinErr.textContent = (res && res.error) || 'Could not join quiz.';
+              joinErr.classList.remove('hidden');
+            }
+            return;
+          }
+          activeCode = code.toUpperCase();
+          pid = res.pid;
+          localStorage.setItem(pidStorageKey(activeCode), pid);
+          state = res.state;
+          if (state.now) clockOffsetMs = state.now - Date.now();
+          you = res.you;
+          render();
+        });
+      }
+
+      joinForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const code = (codeInput.value || activeCode || '').trim().toUpperCase();
+        const name = nameInput.value.trim();
+        if (!code) {
+          joinErr.textContent = 'Please enter the quiz code.';
+          joinErr.classList.remove('hidden');
+          return;
+        }
+        if (!name) {
+          joinErr.textContent = 'Please enter your name.';
+          joinErr.classList.remove('hidden');
+          return;
+        }
+        emitJoin(code, name, null, false);
+      });
+
+      function submitAnswer(choiceIdx) {
+        if (!socket || !state || state.phase !== 'question') return;
+        if (selectedChoice !== null && pendingChoiceQ === state.qIndex) return;
+        selectedChoice = choiceIdx;
+        pendingChoiceQ = state.qIndex;
+        renderQuestionTiles();
+        lockedBanner.className = 'alert alert-ok';
+        lockedBanner.textContent = 'Answer locked in! Waiting for other players…';
+
+        socket.emit('player:answer', { qIndex: state.qIndex, choice: choiceIdx }, (res) => {
+          if (res && res.error) {
+            lockedBanner.textContent = res.error;
+            lockedBanner.className = 'alert alert-warn';
+          }
+        });
+      }
+
+      function renderQuestionTiles() {
+        if (!state || !state.question) return;
+        const locked = selectedChoice !== null;
+        answerGrid.innerHTML = state.question.options.map((opt, i) => {
+          const cls = ['tile', 'tile-' + (i % 6)];
+          if (locked) {
+            cls.push(selectedChoice === i ? 'selected' : 'dimmed');
+          }
+          return '<button type="button" class="' + cls.join(' ') + '" data-choice="' + i + '" ' + (locked ? 'disabled' : '') + '>' +
+            '<span class="tile-letter">' + LETTERS[i] + '</span>' +
+            '<span>' + esc(opt) + '</span>' +
+            '</button>';
+        }).join('');
+      }
+
+      answerGrid.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-choice]');
+        if (!btn) return;
+        submitAnswer(parseInt(btn.getAttribute('data-choice'), 10));
+      });
+
+      function renderTopTable(tbody, list) {
+        const myName = you ? you.name : '';
+        tbody.innerHTML = (list || []).map((row) => {
+          const isMe = myName && row.name === myName;
+          return '<tr class="' + (isMe ? 'highlight-row' : '') + '">' +
+            '<td><strong>#' + row.rank + '</strong></td>' +
+            '<td>' + esc(row.name) + (isMe ? ' (You)' : '') + '</td>' +
+            (tbody === finalTopBody ? '<td>' + row.correct + '</td>' : '') +
+            '<td><strong>' + row.score + '</strong></td>' +
+            '</tr>';
+        }).join('');
+      }
+
+      function render() {
+        if (!state) return;
+        hideAllScreens();
+
+        if (you) {
+          playerHeaderBadge.textContent = you.name + ' · ' + you.score + ' pts';
+          playerHeaderBadge.classList.remove('hidden');
+        }
+
+        if (state.status === 'lobby') {
+          lobbyCard.classList.remove('hidden');
+          lobbyTitle.textContent = state.title;
+          lobbyPlayers.textContent = state.players;
+          return;
+        }
+
+        if (state.status === 'running' && state.phase === 'countdown') {
+          countdownCard.classList.remove('hidden');
+          return;
+        }
+
+        if (state.status === 'running' && state.phase === 'question') {
+          questionCard.classList.remove('hidden');
+          const serverChoice = (you && you.qIndex === state.qIndex && you.answer) ? you.answer.c : null;
+          const localChoice = pendingChoiceQ === state.qIndex ? selectedChoice : null;
+          const effectiveChoice = serverChoice !== null ? serverChoice : localChoice;
+
+          if (lastRenderedQ !== state.qIndex || lastRenderedPhase !== 'question' || selectedChoice !== effectiveChoice) {
+            const isNewQ = lastRenderedQ !== state.qIndex || lastRenderedPhase !== 'question';
+            lastRenderedQ = state.qIndex;
+            lastRenderedPhase = 'question';
+            selectedChoice = effectiveChoice;
+            if (isNewQ) {
+              answeredCountNote.textContent = '';
+              qCounter.textContent = 'Q ' + (state.qIndex + 1) + ' / ' + state.total;
+              qText.textContent = state.question.text;
+              if (state.question.image) {
+                qImg.src = state.question.image;
+                qImg.classList.remove('hidden');
+              } else {
+                qImg.classList.add('hidden');
+              }
+            }
+            lockedBanner.className = 'alert alert-ok' + (selectedChoice !== null ? '' : ' hidden');
+            lockedBanner.textContent = 'Answer locked in! Waiting for other players…';
+            renderQuestionTiles();
+          }
+          return;
+        }
+
+        if (state.status === 'running' && state.phase === 'reveal') {
+          lastRenderedPhase = 'reveal';
+          revealCard.classList.remove('hidden');
+          revealQLabel.textContent = 'Question ' + (state.qIndex + 1) + ' / ' + state.total;
+
+          const myAns = (you && you.qIndex === state.qIndex) ? you.answer : null;
+          if (!myAns) {
+            resultBanner.className = 'alert alert-warn';
+            resultBanner.textContent = "⏱️ Time's up! You didn't answer this question.";
+          } else if (myAns.ok) {
+            resultBanner.className = 'alert alert-ok';
+            resultBanner.textContent = '✅ Correct! +' + myAns.pts + ' pts';
+          } else {
+            resultBanner.className = 'alert alert-error';
+            resultBanner.textContent = '❌ Wrong (You picked ' + LETTERS[myAns.c] + ')';
+          }
+
+          correctAnswerText.textContent = LETTERS[state.answer] + '. ' + state.question.options[state.answer];
+          if (state.explanation) {
+            explanationText.textContent = state.explanation;
+            explanationText.classList.remove('hidden');
+          } else {
+            explanationText.classList.add('hidden');
+          }
+
+          revealMyScore.textContent = you ? you.score : 0;
+          revealMyRank.textContent = you && you.rank ? '#' + you.rank + ' / ' + you.players : '-';
+
+          const dist = state.dist || [];
+          const att = state.attempted || 0;
+          revealDist.innerHTML = state.question.options.map((opt, i) => {
+            const count = dist[i] || 0;
+            const pct = att > 0 ? Math.round((count / att) * 100) : 0;
+            const isCorr = i === state.answer;
+            return '<div class="host-opt ' + (isCorr ? 'is-correct' : '') + '">' +
+              '<div class="host-opt-bar" style="width:' + pct + '%; background:' + COLORS[i % COLORS.length] + ';"></div>' +
+              '<div class="host-opt-inner">' +
+                '<div><strong>' + LETTERS[i] + '.</strong> ' + esc(opt) + '</div>' +
+                '<div><strong>' + count + '</strong></div>' +
+              '</div>' +
+              '</div>';
+          }).join('');
+
+          renderTopTable(revealTopBody, state.top);
+          return;
+        }
+
+        if (state.status === 'ended') {
+          lastRenderedPhase = 'ended';
+          endedCard.classList.remove('hidden');
+          endedTitle.textContent = state.title;
+          finalRank.textContent = you && you.rank ? '#' + you.rank + ' / ' + you.players : '-';
+          finalScore.textContent = you ? you.score : 0;
+
+          const top = state.top || [];
+          const order = [top[1], top[0], top[2]].filter(Boolean);
+          const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
+          podium.innerHTML = order.map((p) => {
+            return '<div class="podium-step podium-' + p.rank + '">' +
+              '<div class="podium-medal">' + (medals[p.rank] || '#' + p.rank) + '</div>' +
+              '<div class="podium-name">' + esc(p.name) + '</div>' +
+              '<div class="podium-score">' + p.score + ' pts</div>' +
+              '</div>';
+          }).join('');
+
+          renderTopTable(finalTopBody, top);
+        }
+      }
+
+      // Timer loop for countdown, question & reveal
+      setInterval(() => {
+        if (!state || state.status !== 'running' || !state.endsAt) return;
+        const remMs = Math.max(0, state.endsAt - (Date.now() + clockOffsetMs));
+        const secs = Math.ceil(remMs / 1000);
+        if (state.phase === 'countdown') {
+          countdownNum.textContent = Math.max(1, secs);
+        } else if (state.phase === 'question' && state.question) {
+          qTimer.textContent = secs + 's';
+          const totalMs = (state.question.time || 20) * 1000;
+          qTimerBar.style.width = Math.max(0, Math.min(100, (remMs / totalMs) * 100)) + '%';
+        } else if (state.phase === 'reveal') {
+          revealNextTimer.textContent = (state.nextIsLast ? 'Final results in ' : 'Next in ') + secs + 's';
+        }
+      }, 100);
+
+      // Boot
+      if (urlCode) {
+        codeInput.value = urlCode;
+        codeFieldWrap.classList.add('hidden');
+        lookupQuiz(urlCode);
+        const savedPid = localStorage.getItem(pidStorageKey(urlCode));
+        if (savedPid) {
+          pid = savedPid;
+          emitJoin(urlCode, '', savedPid, true);
+        }
+      }
+    })();
+  </script>
+</body>
+</html>

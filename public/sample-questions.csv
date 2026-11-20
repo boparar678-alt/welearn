@@ -1,0 +1,5 @@
+Question,Option A,Option B,Option C,Option D,Answer,Time,Image,Explanation
+What is the capital of France?,Berlin,Madrid,Paris,Rome,C,20,,Paris has been France's capital since the 10th century.
+Which planet is known as the Red Planet?,Venus,Mars,Jupiter,Saturn,2,20,,Iron oxide on Mars gives its surface a reddish appearance.
+"In JavaScript, which keyword declares a block-scoped constant?",var,let,const,static,const,15,,const creates a block-scoped read-only reference.
+How many bits are in a byte?,4,8,16,32,B,15,,One byte equals 8 bits.

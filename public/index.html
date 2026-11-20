@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WeLearn — Live Multiplayer Quiz Platform</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+  <script src="/parse.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <header class="topbar">
+      <a href="/" class="brand">
+        <span class="brand-mark">W</span>
+        <span class="brand-text">
+          <span class="brand-title">WeLearn</span>
+          <span class="brand-sub">by ASPIRA</span>
+        </span>
+      </a>
+      <a href="/join" class="btn btn-secondary btn-sm">Join a Quiz</a>
+    </header>
+
+    <!-- Join card -->
+    <section class="card">
+      <h2>Join a Live Quiz</h2>
+      <form id="joinForm" class="row-actions" style="margin-top: 10px;">
+        <div style="flex: 1; min-width: 190px;">
+          <input id="joinCodeInput" type="text" maxlength="8" placeholder="Enter 6-character code (e.g. ABC123)" style="text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;">
+        </div>
+        <button type="submit" class="btn btn-primary">Join Game</button>
+      </form>
+      <div id="joinError" class="alert alert-error hidden"></div>
+    </section>
+
+    <!-- Create quiz card -->
+    <section class="card">
+      <div class="topbar" style="margin-bottom: 12px;">
+        <div>
+          <h1 style="margin-bottom: 4px;">Create &amp; Host a Quiz</h1>
+          <p class="muted" style="margin: 0;">Upload CSV/Excel or paste rows from Excel or Google Sheets. Auto-runs once started.</p>
+        </div>
+        <div class="row-actions">
+          <a href="/sample-questions.csv" download="sample-questions.csv" class="btn btn-secondary btn-sm">Download CSV template</a>
+          <button type="button" id="loadSampleBtn" class="btn btn-secondary btn-sm">Load sample questions</button>
+        </div>
+      </div>
+
+      <div class="grid-3">
+        <div>
+          <label class="field-label" for="quizTitle">Quiz Title</label>
+          <input id="quizTitle" type="text" maxlength="150" placeholder="e.g. Friday Trivia Night">
+        </div>
+        <div>
+          <label class="field-label" for="defaultTime">Seconds per question</label>
+          <input id="defaultTime" type="number" min="5" max="600" value="20">
+        </div>
+        <div>
+          <label class="field-label" for="revealTime">Seconds to show answer &amp; leaderboard</label>
+          <input id="revealTime" type="number" min="3" max="120" value="6">
+        </div>
+      </div>
+
+      <div class="toggles">
+        <label class="toggle">
+          <input id="speedBonus" type="checkbox" checked>
+          <span>Speed bonus (500–1000 pts)</span>
+        </label>
+        <label class="toggle">
+          <input id="allowLateJoin" type="checkbox" checked>
+          <span>Allow late join</span>
+        </label>
+        <label class="toggle">
+          <input id="shuffleQuestions" type="checkbox">
+          <span>Shuffle questions</span>
+        </label>
+      </div>
+
+      <div class="grid-2" style="margin-top: 18px;">
+        <div>
+          <label class="field-label">1. Upload CSV / Excel (.xlsx, .xls)</label>
+          <div id="dropzone" class="dropzone" tabindex="0">
+            <div style="font-weight: 600;">Click to choose a file or drag &amp; drop</div>
+            <div class="muted" style="font-size: 0.82rem; margin-top: 4px;">Columns: Question, Option A…F, Answer, Time, Image, Explanation</div>
+            <div id="fileNameLabel" class="muted" style="font-size: 0.82rem; margin-top: 6px; color: var(--accent);"></div>
+            <input id="fileInput" type="file" accept=".csv,.tsv,.txt,.xlsx,.xls" class="hidden">
+          </div>
+
+          <label class="field-label" for="pasteInput" style="margin-top: 14px;">Or paste CSV / tab-separated rows from Excel / Google Sheets</label>
+          <textarea id="pasteInput" placeholder="Question&#9;Option A&#9;Option B&#9;Option C&#9;Option D&#9;Answer&#10;2 + 2 = ?&#9;3&#9;4&#9;5&#9;6&#9;B"></textarea>
+        </div>
+
+        <div>
+          <label class="field-label" for="answerKeyInput">Optional separate Answer Key (overrides Answer column)</label>
+          <textarea id="answerKeyInput" style="min-height: 205px;" placeholder="Examples:&#10;1-B, 2-A, 3-D&#10;&#10;Or one per line:&#10;B&#10;A&#10;D"></textarea>
+          <p class="muted" style="font-size: 0.8rem; margin-top: 6px;">
+            Accepts letters (A–F), option numbers (1–6), or exact option text.
+          </p>
+        </div>
+      </div>
+
+      <div id="parseStatus" class="hidden"></div>
+
+      <!-- Preview Table -->
+      <div id="previewSection" class="hidden" style="margin-top: 18px;">
+        <div class="topbar" style="margin-bottom: 6px;">
+          <h3 style="margin: 0;">Question Preview (<span id="previewCount">0</span>)</h3>
+          <span id="previewBadge" class="badge"></span>
+        </div>
+        <div class="table-wrap" style="max-height: 360px; overflow-y: auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Question</th>
+                <th>Options (correct highlighted)</th>
+                <th>Time</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="previewBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="createError" class="alert alert-error hidden"></div>
+
+      <div class="row-actions" style="margin-top: 18px; justify-content: flex-end;">
+        <button id="createBtn" type="button" class="btn btn-primary btn-lg" disabled>
+          Create quiz &amp; get link
+        </button>
+      </div>
+    </section>
+
+    <!-- My quizzes -->
+    <section id="myQuizzesSection" class="card hidden">
+      <div class="topbar" style="margin-bottom: 8px;">
+        <h2 style="margin: 0;">My Quizzes (this browser)</h2>
+        <button id="clearHistoryBtn" type="button" class="btn btn-secondary btn-sm">Clear list</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Code</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="myQuizzesBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    (function () {
+      const STORAGE_KEY = 'quizlive_my_quizzes';
+      const LETTERS = 'ABCDEF';
+
+      const joinForm = document.getElementById('joinForm');
+      const joinCodeInput = document.getElementById('joinCodeInput');
+      const joinError = document.getElementById('joinError');
+
+      const dropzone = document.getElementById('dropzone');
+      const fileInput = document.getElementById('fileInput');
+      const fileNameLabel = document.getElementById('fileNameLabel');
+      const pasteInput = document.getElementById('pasteInput');
+      const answerKeyInput = document.getElementById('answerKeyInput');
+      const loadSampleBtn = document.getElementById('loadSampleBtn');
+
+      const parseStatus = document.getElementById('parseStatus');
+      const previewSection = document.getElementById('previewSection');
+      const previewCount = document.getElementById('previewCount');
+      const previewBadge = document.getElementById('previewBadge');
+      const previewBody = document.getElementById('previewBody');
+      const createBtn = document.getElementById('createBtn');
+      const createError = document.getElementById('createError');
+
+      const myQuizzesSection = document.getElementById('myQuizzesSection');
+      const myQuizzesBody = document.getElementById('myQuizzesBody');
+      const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+
+      let lastExcelRows = null;
+      let parsedResult = { questions: [], errors: [] };
+
+      function esc(s) {
+        return String(s ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      joinForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        joinError.classList.add('hidden');
+        const code = joinCodeInput.value.trim().toUpperCase();
+        if (!code) {
+          joinError.textContent = 'Please enter a quiz code.';
+          joinError.classList.remove('hidden');
+          return;
+        }
+        try {
+          const res = await fetch('/api/join/' + encodeURIComponent(code));
+          const data = await res.json();
+          if (!res.ok) {
+            joinError.textContent = data.error || 'Quiz not found.';
+            joinError.classList.remove('hidden');
+            return;
+          }
+          window.location.href = '/join/' + encodeURIComponent(code);
+        } catch {
+          joinError.textContent = 'Network error checking code.';
+          joinError.classList.remove('hidden');
+        }
+      });
+
+      function reparse() {
+        if (!window.QuizParser) return;
+        const keyText = answerKeyInput.value;
+        if (lastExcelRows) {
+          parsedResult = window.QuizParser.rowsToQuestions(lastExcelRows, keyText);
+        } else {
+          parsedResult = window.QuizParser.parseText(pasteInput.value, keyText);
+        }
+        renderPreview();
+      }
+
+      function renderPreview() {
+        const { questions, errors } = parsedResult;
+        createError.classList.add('hidden');
+
+        if (questions.length === 0 && errors.length === 0) {
+          parseStatus.classList.add('hidden');
+          previewSection.classList.add('hidden');
+          createBtn.disabled = true;
+          return;
+        }
+
+        parseStatus.classList.remove('hidden', 'alert-error', 'alert-ok');
+        if (errors.length > 0) {
+          parseStatus.className = 'alert alert-error';
+          parseStatus.innerHTML = '<strong>Fix ' + errors.length + ' error(s) before creating:</strong><br>' +
+            errors.slice(0, 8).map(esc).join('<br>') +
+            (errors.length > 8 ? '<br>…and ' + (errors.length - 8) + ' more' : '');
+        } else {
+          parseStatus.className = 'alert alert-ok';
+          parseStatus.textContent = 'Ready! ' + questions.length + ' valid question(s) detected.';
+        }
+
+        previewSection.classList.remove('hidden');
+        previewCount.textContent = questions.length;
+        previewBadge.textContent = errors.length === 0 ? 'All valid' : errors.length + ' issue(s)';
+        previewBadge.className = 'badge ' + (errors.length === 0 ? 'badge-good' : 'badge-bad');
+
+        previewBody.innerHTML = questions.slice(0, 200).map((q, idx) => {
+          const optsHtml = q.options.map((opt, oi) => {
+            const isCorrect = oi === q.answer;
+            return '<span class="opt-chip ' + (isCorrect ? 'correct' : '') + '">' +
+              LETTERS[oi] + ': ' + esc(opt) + '</span>';
+          }).join('');
+          const statusHtml = q._errors && q._errors.length
+            ? '<span class="badge badge-bad">' + esc(q._errors.join(', ')) + '</span>'
+            : '<span class="badge badge-good">OK</span>';
+          return '<tr>' +
+            '<td>' + (idx + 1) + '</td>' +
+            '<td>' + esc(q.q || '(empty)') + (q.image ? '<div class="muted" style="font-size:0.75rem;">Has image</div>' : '') + '</td>' +
+            '<td>' + optsHtml + '</td>' +
+            '<td>' + (q.time ? q.time + 's' : 'Default') + '</td>' +
+            '<td>' + statusHtml + '</td>' +
+            '</tr>';
+        }).join('');
+
+        createBtn.disabled = !(questions.length > 0 && errors.length === 0);
+      }
+
+      async function handleFile(file) {
+        if (!file) return;
+        fileNameLabel.textContent = 'Loaded: ' + file.name;
+        try {
+          const res = await window.QuizParser.parseFile(file, answerKeyInput.value);
+          if (res.rawRows) {
+            lastExcelRows = res.rawRows;
+            pasteInput.value = '';
+          } else {
+            lastExcelRows = null;
+            pasteInput.value = res.rawText || '';
+          }
+          parsedResult = res;
+          renderPreview();
+        } catch (err) {
+          parseStatus.className = 'alert alert-error';
+          parseStatus.classList.remove('hidden');
+          parseStatus.textContent = err.message || 'Could not parse file.';
+          createBtn.disabled = true;
+        }
+      }
+
+      dropzone.addEventListener('click', () => fileInput.click());
+      dropzone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+      });
+      fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+      dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+      dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+      dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+          handleFile(e.dataTransfer.files[0]);
+        }
+      });
+
+      pasteInput.addEventListener('input', () => {
+        lastExcelRows = null;
+        fileNameLabel.textContent = '';
+        reparse();
+      });
+      answerKeyInput.addEventListener('input', reparse);
+
+      loadSampleBtn.addEventListener('click', async () => {
+        try {
+          const res = await fetch('/sample-questions.csv');
+          const text = await res.text();
+          lastExcelRows = null;
+          fileNameLabel.textContent = 'Loaded sample-questions.csv';
+          pasteInput.value = text;
+          if (!document.getElementById('quizTitle').value.trim()) {
+            document.getElementById('quizTitle').value = 'Sample General Knowledge Quiz';
+          }
+          reparse();
+        } catch {
+          createError.textContent = 'Could not load sample template.';
+          createError.classList.remove('hidden');
+        }
+      });
+
+      createBtn.addEventListener('click', async () => {
+        createError.classList.add('hidden');
+        if (parsedResult.questions.length === 0 || parsedResult.errors.length > 0) return;
+
+        createBtn.disabled = true;
+        const oldText = createBtn.textContent;
+        createBtn.textContent = 'Creating…';
+
+        const payload = {
+          title: document.getElementById('quizTitle').value.trim() || 'Untitled Quiz',
+          defaultTime: parseInt(document.getElementById('defaultTime').value, 10) || 20,
+          revealTime: parseInt(document.getElementById('revealTime').value, 10) || 6,
+          speedBonus: document.getElementById('speedBonus').checked,
+          allowLateJoin: document.getElementById('allowLateJoin').checked,
+          shuffleQuestions: document.getElementById('shuffleQuestions').checked,
+          questions: parsedResult.questions.map((q) => ({
+            q: q.q,
+            options: q.options,
+            answer: q.answer,
+            time: q.time,
+            image: q.image,
+            explanation: q.explanation,
+          })),
+        };
+
+        try {
+          const res = await fetch('/api/quizzes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || 'Failed to create quiz.');
+          }
+          saveMyQuiz({
+            id: data.id,
+            code: data.code,
+            hostKey: data.hostKey,
+            title: payload.title,
+            createdAt: Date.now(),
+          });
+          window.location.href = '/host/' + encodeURIComponent(data.id) + '#key=' + encodeURIComponent(data.hostKey);
+        } catch (err) {
+          createError.textContent = err.message;
+          createError.classList.remove('hidden');
+          createBtn.disabled = false;
+          createBtn.textContent = oldText;
+        }
+      });
+
+      function loadMyQuizzes() {
+        try {
+          return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') || [];
+        } catch {
+          return [];
+        }
+      }
+
+      function saveMyQuiz(entry) {
+        const list = loadMyQuizzes().filter((x) => x.id !== entry.id);
+        list.unshift(entry);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(list.slice(0, 30)));
+      }
+
+      function renderMyQuizzes() {
+        const list = loadMyQuizzes();
+        if (list.length === 0) {
+          myQuizzesSection.classList.add('hidden');
+          return;
+        }
+        myQuizzesSection.classList.remove('hidden');
+        myQuizzesBody.innerHTML = list.map((item) => {
+          const hostUrl = '/host/' + encodeURIComponent(item.id) + '#key=' + encodeURIComponent(item.hostKey);
+          const joinUrl = '/join/' + encodeURIComponent(item.code);
+          const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleString() : '';
+          return '<tr>' +
+            '<td><strong>' + esc(item.title) + '</strong></td>' +
+            '<td><span class="badge badge-lobby">' + esc(item.code) + '</span></td>' +
+            '<td class="muted">' + esc(dateStr) + '</td>' +
+            '<td class="row-actions">' +
+              '<a class="btn btn-primary btn-sm" href="' + hostUrl + '">Host Dashboard</a>' +
+              '<a class="btn btn-secondary btn-sm" href="' + joinUrl + '" target="_blank" rel="noopener">Join Link</a>' +
+            '</td>' +
+            '</tr>';
+        }).join('');
+      }
+
+      clearHistoryBtn.addEventListener('click', () => {
+        localStorage.removeItem(STORAGE_KEY);
+        renderMyQuizzes();
+      });
+
+      window.addEventListener('DOMContentLoaded', () => {
+        renderMyQuizzes();
+        if (pasteInput.value.trim()) reparse();
+      });
+    })();
+  </script>
+</body>
+</html>
