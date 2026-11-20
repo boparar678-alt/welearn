@@ -1,17 +1,19 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
 
 :root {
-  --bg-top: #180930;
-  --bg-mid: #28114d;
-  --bg-bot: #120724;
+  --bg-top: #10163d;
+  --bg-mid: #1d2666;
+  --bg-bot: #0b102c;
+  --brand-blue: #2e3890;
   --card: rgba(255, 255, 255, 0.08);
-  --card-strong: rgba(255, 255, 255, 0.13);
-  --border: rgba(255, 255, 255, 0.14);
-  --text: #f8f7fc;
-  --muted: #c6bce0;
-  --accent: #ffcc33;
-  --accent-dark: #e6b21a;
-  --accent-text: #1b0d33;
+  --card-strong: rgba(255, 255, 255, 0.14);
+  --border: rgba(201, 205, 234, 0.18);
+  --text: #ffffff;
+  --muted: #c9cdea;
+  --accent: #e71d2e;
+  --accent-dark: #c51423;
+  --accent-text: #ffffff;
+  --gold: #ffcc33;
   --good: #29c76f;
   --bad: #ff4d6d;
   --warn: #ffb703;
@@ -23,7 +25,7 @@
   --opt-f: #e66a00;
   --radius: 16px;
   --radius-sm: 10px;
-  --shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  --shadow: 0 12px 32px rgba(5, 8, 28, 0.45);
 }
 
 * {
@@ -41,7 +43,7 @@ html, body {
 }
 
 a {
-  color: var(--accent);
+  color: #9db2ff;
   text-decoration: none;
 }
 
@@ -71,12 +73,9 @@ a:hover {
 }
 
 .brand {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 10px;
-  font-weight: 800;
-  font-size: 1.45rem;
-  letter-spacing: -0.02em;
   color: var(--text);
   text-decoration: none;
 }
@@ -85,38 +84,16 @@ a:hover {
   text-decoration: none;
 }
 
-.brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 11px;
-  background: var(--accent);
-  color: var(--accent-text);
-  font-weight: 800;
-  font-size: 1.15rem;
-  box-shadow: 0 4px 14px rgba(255, 204, 51, 0.35);
+.brand-logo {
+  height: 48px;
+  width: auto;
+  display: block;
 }
 
-.brand-text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.1;
-}
-
-.brand-title {
-  font-weight: 800;
-  font-size: 1.4rem;
-  letter-spacing: -0.02em;
-}
-
-.brand-sub {
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  color: var(--muted);
-  margin-top: 2px;
+@media (max-width: 480px) {
+  .brand-logo {
+    height: 40px;
+  }
 }
 
 .card {
@@ -188,7 +165,7 @@ select {
   padding: 11px 14px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
-  background: rgba(15, 7, 31, 0.6);
+  background: rgba(11, 16, 44, 0.72);
   color: var(--text);
   font-family: inherit;
   font-size: 0.95rem;
@@ -197,8 +174,8 @@ select {
 }
 
 input:focus, textarea:focus, select:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(255, 204, 51, 0.2);
+  border-color: #7fa1ff;
+  box-shadow: 0 0 0 3px rgba(127, 161, 255, 0.25);
 }
 
 textarea {
@@ -243,10 +220,11 @@ textarea {
   background: var(--accent);
   color: var(--accent-text);
   font-weight: 700;
+  box-shadow: 0 4px 14px rgba(231, 29, 46, 0.32);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #ffd65c;
+  background: #ff2c3e;
 }
 
 .btn-secondary {
@@ -319,17 +297,17 @@ textarea {
 }
 
 .dropzone {
-  border: 2px dashed rgba(255, 204, 51, 0.42);
+  border: 2px dashed rgba(201, 205, 234, 0.42);
   border-radius: var(--radius-sm);
   padding: 18px;
   text-align: center;
-  background: rgba(255, 204, 51, 0.04);
+  background: rgba(46, 56, 144, 0.22);
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .dropzone.dragover {
-  background: rgba(255, 204, 51, 0.12);
+  background: rgba(231, 29, 46, 0.14);
   border-color: var(--accent);
 }
 
@@ -345,9 +323,9 @@ textarea {
   color: var(--text);
 }
 
-.badge-lobby { background: rgba(255, 204, 51, 0.2); color: var(--accent); }
+.badge-lobby { background: rgba(46, 56, 144, 0.65); border: 1px solid rgba(201, 205, 234, 0.35); color: #ffffff; }
 .badge-running { background: rgba(41, 199, 111, 0.22); color: #7ef2ad; }
-.badge-ended { background: rgba(198, 188, 224, 0.2); color: var(--muted); }
+.badge-ended { background: rgba(201, 205, 234, 0.2); color: var(--muted); }
 .badge-good { background: rgba(41, 199, 111, 0.22); color: #7ef2ad; }
 .badge-bad { background: rgba(255, 77, 109, 0.22); color: #ff99ab; }
 
@@ -412,7 +390,7 @@ tr.clickable:hover {
 }
 
 tr.highlight-row {
-  background: rgba(255, 204, 51, 0.16);
+  background: rgba(231, 29, 46, 0.18);
   font-weight: 600;
 }
 
@@ -456,7 +434,8 @@ tr.highlight-row {
   font-size: 2rem;
   font-weight: 800;
   letter-spacing: 0.14em;
-  color: var(--accent);
+  color: #ffffff;
+  text-shadow: 0 2px 14px rgba(231, 29, 46, 0.45);
 }
 
 .progress-track {
@@ -479,7 +458,7 @@ tr.highlight-row {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: #6f648a;
+  background: #6e76a8;
 }
 
 .dot.online {
@@ -645,13 +624,13 @@ tr.highlight-row {
   background: rgba(255, 255, 255, 0.08);
 }
 
-.podium-1 { min-height: 155px; background: rgba(255, 204, 51, 0.18); border-color: rgba(255, 204, 51, 0.6); }
+.podium-1 { min-height: 155px; background: rgba(46, 56, 144, 0.45); border-color: rgba(255, 204, 51, 0.65); }
 .podium-2 { min-height: 125px; }
 .podium-3 { min-height: 105px; }
 
 .podium-medal { font-size: 1.7rem; }
 .podium-name { font-weight: 700; margin-top: 4px; word-break: break-word; }
-.podium-score { font-size: 0.85rem; color: var(--accent); font-weight: 700; margin-top: 2px; }
+.podium-score { font-size: 0.85rem; color: var(--gold); font-weight: 700; margin-top: 2px; }
 
 .countdown-circle {
   width: 120px;
@@ -664,8 +643,8 @@ tr.highlight-row {
   justify-content: center;
   font-size: 3rem;
   font-weight: 800;
-  color: var(--accent);
-  box-shadow: 0 0 35px rgba(255, 204, 51, 0.28);
+  color: #ffffff;
+  box-shadow: 0 0 35px rgba(231, 29, 46, 0.35);
 }
 
 .q-image {
@@ -724,8 +703,8 @@ tr.highlight-row {
 }
 
 @keyframes glowPulse {
-  0%, 100% { box-shadow: 0 0 18px rgba(255, 204, 51, 0.25); }
-  50% { box-shadow: 0 0 36px rgba(255, 204, 51, 0.55); }
+  0%, 100% { box-shadow: 0 0 18px rgba(231, 29, 46, 0.28); }
+  50% { box-shadow: 0 0 36px rgba(231, 29, 46, 0.55); }
 }
 
 .winner-banner {
@@ -733,7 +712,7 @@ tr.highlight-row {
   padding: 18px 16px;
   border-radius: 16px;
   text-align: center;
-  background: linear-gradient(135deg, rgba(255, 204, 51, 0.24), rgba(168, 85, 247, 0.22));
+  background: linear-gradient(135deg, rgba(46, 56, 144, 0.65), rgba(231, 29, 46, 0.28));
   border: 2px solid rgba(255, 204, 51, 0.65);
   animation: winnerPop 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards, glowPulse 2.4s ease-in-out infinite 0.55s;
 }
@@ -748,7 +727,7 @@ tr.highlight-row {
 .winner-name {
   font-size: 1.45rem;
   font-weight: 800;
-  color: var(--accent);
+  color: var(--gold);
   margin-top: 4px;
 }
 
@@ -797,8 +776,8 @@ tr.highlight-row {
 
 .avatar-btn.active {
   border-color: var(--accent);
-  background: rgba(255, 204, 51, 0.22);
-  box-shadow: 0 0 0 3px rgba(255, 204, 51, 0.22);
+  background: rgba(231, 29, 46, 0.24);
+  box-shadow: 0 0 0 3px rgba(231, 29, 46, 0.25);
   transform: scale(1.05);
 }
 

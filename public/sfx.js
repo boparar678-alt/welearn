@@ -136,7 +136,7 @@
     let w = (canvas.width = global.innerWidth * dpr);
     let h = (canvas.height = global.innerHeight * dpr);
     const context = canvas.getContext('2d');
-    const palette = ['#ffcc33', '#29c76f', '#ff4d6d', '#38bdf8', '#a855f7', '#ffffff'];
+    const palette = ['#e71d2e', '#2e3890', '#ffffff', '#ffcc33', '#29c76f', '#c9cdea'];
 
     const pieces = Array.from({ length: 130 }, (_, i) => {
       const fromLeft = i % 2 === 0;

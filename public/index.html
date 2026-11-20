@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WeLearn — Live Multiplayer Quiz Platform</title>
+  <title>WeLearn by ASPIRA — Live Multiplayer Quiz Platform</title>
+  <link rel="icon" type="image/svg+xml" href="/assets/aistudio/welearn-favicon_87e55a5e.svg">
+  <link rel="icon" type="image/png" sizes="64x64" href="/assets/aistudio/welearn-favicon-64_7c432c43.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="/assets/aistudio/welearn-icon-192_646d987a.png">
   <link rel="stylesheet" href="/style.css">
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
   <script src="/parse.js" defer></script>
@@ -12,11 +15,7 @@
   <div class="container">
     <header class="topbar">
       <a href="/" class="brand">
-        <span class="brand-mark">W</span>
-        <span class="brand-text">
-          <span class="brand-title">WeLearn</span>
-          <span class="brand-sub">by ASPIRA</span>
-        </span>
+        <img src="/assets/aistudio/welearn-logo-wide-dark-bg_a358b409.svg" alt="WeLearn by ASPIRA" class="brand-logo">
       </a>
       <a href="/join" class="btn btn-secondary btn-sm">Join a Quiz</a>
     </header>
@@ -81,7 +80,7 @@
           <div id="dropzone" class="dropzone" tabindex="0">
             <div style="font-weight: 600;">Click to choose a file or drag &amp; drop</div>
             <div class="muted" style="font-size: 0.82rem; margin-top: 4px;">Columns: Question, Option A…F, Answer, Time, Image, Explanation</div>
-            <div id="fileNameLabel" class="muted" style="font-size: 0.82rem; margin-top: 6px; color: var(--accent);"></div>
+            <div id="fileNameLabel" class="muted" style="font-size: 0.82rem; margin-top: 6px; color: #9db2ff;"></div>
             <input id="fileInput" type="file" accept=".csv,.tsv,.txt,.xlsx,.xls" class="hidden">
           </div>
 
