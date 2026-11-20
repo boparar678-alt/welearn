@@ -113,14 +113,14 @@ function cleanSettings(b, prev = {}) {
     defaultTime: clampInt(b.defaultTime ?? prev.defaultTime, 5, 600, 20),
     revealTime: clampInt(b.revealTime ?? prev.revealTime, 3, 120, 6),
     speedBonus: b.speedBonus === undefined ? (prev.speedBonus ?? true) : !!b.speedBonus,
-    allowLateJoin: b.allowLateJoin === undefined ? (prev.allowLateJoin ?? true) : !!b.allowLateJoin,
+    allowLateJoin: false,
     shuffleQuestions: b.shuffleQuestions === undefined ? (prev.shuffleQuestions ?? false) : !!b.shuffleQuestions,
   };
 }
 
 const qTime = (quiz, i) => quiz.questions[i].time || quiz.settings.defaultTime;
 const playerCount = (quiz) => Object.keys(quiz.players).length;
-const R = (quiz) => (rt[quiz.id] ||= { timer: null, hostTimer: null, tickTimer: null, rankCache: null });
+const R = (quiz) => (rt[quiz.id] ||= { timer: null, earlyTimer: null, hostTimer: null, tickTimer: null, rankCache: null });
 
 function ranked(quiz) {
   const r = R(quiz);
@@ -135,9 +135,12 @@ function ranked(quiz) {
 }
 const invalidateRank = (quiz) => { R(quiz).rankCache = null; };
 
+const AVATARS = ['🦊', '🐼', '🦁', '🐯', '🐸', '🦉', '🦄', '🐙', '🐝', '🦋', '🚀', '⚡', '🎯', '🌟', '🔥', '🧠'];
+const cleanAvatar = (a) => (typeof a === 'string' && AVATARS.includes(a.trim()) ? a.trim() : AVATARS[0]);
+
 function topList(quiz, n) {
   return ranked(quiz).list.slice(0, n).map((x, i) => ({
-    rank: i + 1, name: x.p.name, score: x.p.score, correct: x.p.correct,
+    rank: i + 1, name: x.p.name, avatar: x.p.avatar || AVATARS[0], score: x.p.score, correct: x.p.correct,
   }));
 }
 
@@ -156,8 +159,8 @@ function attemptsFor(quiz, qi) {
   const list = [], notAttempted = [];
   for (const [pid, p] of Object.entries(quiz.players)) {
     const a = p.answers[qi];
-    if (a) list.push({ pid, name: p.name, c: a.c, ok: a.ok, ms: a.ms, pts: a.pts });
-    else notAttempted.push({ pid, name: p.name, online: p.online > 0 });
+    if (a) list.push({ pid, name: p.name, avatar: p.avatar || AVATARS[0], c: a.c, ok: a.ok, ms: a.ms, pts: a.pts });
+    else notAttempted.push({ pid, name: p.name, avatar: p.avatar || AVATARS[0], online: p.online > 0 });
   }
   list.sort((a, b) => a.ms - b.ms);
   notAttempted.sort((a, b) => a.name.localeCompare(b.name));
@@ -193,7 +196,7 @@ function personal(quiz, pid) {
   const revealOk = quiz.phase === 'reveal' || quiz.status === 'ended';
   const a = quiz.current >= 0 ? p.answers[quiz.current] : null;
   return {
-    name: p.name, score: p.score, correct: p.correct,
+    name: p.name, avatar: p.avatar || AVATARS[0], score: p.score, correct: p.correct,
     qIndex: quiz.current,
     rank: revealOk ? ranked(quiz).rankOf.get(pid) : null,
     players: playerCount(quiz),
@@ -215,7 +218,7 @@ function hostState(quiz) {
     online: Object.values(quiz.players).filter((p) => p.online > 0).length,
     perQuestion,
     leaderboard: r.list.map((x, i) => ({
-      pid: x.pid, rank: i + 1, name: x.p.name, score: x.p.score, correct: x.p.correct,
+      pid: x.pid, rank: i + 1, name: x.p.name, avatar: x.p.avatar || AVATARS[0], score: x.p.score, correct: x.p.correct,
       answered: Object.keys(x.p.answers).length, online: x.p.online > 0,
     })),
   };
@@ -269,7 +272,29 @@ function broadcastState(quiz, withPersonal) {
 function schedule(quiz, ms, fn) {
   const r = R(quiz);
   clearTimeout(r.timer);
+  clearTimeout(r.earlyTimer);
+  r.earlyTimer = null;
   r.timer = setTimeout(fn, ms);
+}
+
+function allOnlineAnswered(quiz) {
+  if (quiz.status !== 'running' || quiz.phase !== 'question' || quiz.current < 0) return false;
+  const online = Object.values(quiz.players).filter((p) => p.online > 0);
+  if (online.length === 0) return false;
+  return online.every((p) => !!p.answers[quiz.current]);
+}
+
+function maybeEarlyReveal(quiz) {
+  if (!allOnlineAnswered(quiz)) return;
+  const r = R(quiz);
+  if (r.earlyTimer) return;
+  const cur = quiz.current;
+  r.earlyTimer = setTimeout(() => {
+    r.earlyTimer = null;
+    if (quiz.status === 'running' && quiz.phase === 'question' && quiz.current === cur && allOnlineAnswered(quiz)) {
+      goReveal(quiz);
+    }
+  }, 1200);
 }
 
 function startQuiz(quiz) {
@@ -317,7 +342,10 @@ function goReveal(quiz) {
 }
 
 function endQuiz(quiz) {
-  clearTimeout(R(quiz).timer);
+  const r = R(quiz);
+  clearTimeout(r.timer);
+  clearTimeout(r.earlyTimer);
+  r.earlyTimer = null;
   invalidateRank(quiz);
   quiz.status = 'ended';
   quiz.phase = null;
@@ -327,7 +355,10 @@ function endQuiz(quiz) {
 }
 
 function resetQuiz(quiz) {
-  clearTimeout(R(quiz).timer);
+  const r = R(quiz);
+  clearTimeout(r.timer);
+  clearTimeout(r.earlyTimer);
+  r.earlyTimer = null;
   quiz.status = 'lobby';
   quiz.current = -1;
   quiz.phase = null;
@@ -412,7 +443,7 @@ app.delete('/api/quizzes/:id', (req, res) => {
 app.get('/api/join/:code', (req, res) => {
   const quiz = quizzes[byCode[String(req.params.code).toUpperCase()]];
   if (!quiz) return res.status(404).json({ error: 'No quiz with that code.' });
-  res.json({ title: quiz.title, status: quiz.status, players: playerCount(quiz), total: quiz.questions.length, allowLateJoin: quiz.settings.allowLateJoin });
+  res.json({ title: quiz.title, status: quiz.status, players: playerCount(quiz), total: quiz.questions.length, allowLateJoin: false });
 });
 
 function csvCell(v) {
@@ -514,6 +545,7 @@ io.on('connection', (socket) => {
       if (s && s.data.pid === pid) { s.emit('kicked'); s.leave('play:' + quiz.id); s.data.pid = null; }
     }
     hostDirty(quiz, 10); tickDirty(quiz); save();
+    maybeEarlyReveal(quiz);
     ackFn(ack)({ ok: true });
   });
 
@@ -525,20 +557,24 @@ io.on('connection', (socket) => {
   });
 
   /* ---------------- player ---------------- */
-  socket.on('player:join', ({ code, name, pid } = {}, ack) => {
+  socket.on('player:join', ({ code, name, avatar, pid } = {}, ack) => {
     const quiz = quizzes[byCode[String(code || '').toUpperCase().trim()]];
     if (!quiz) return ackFn(ack)({ error: 'Quiz not found. Check the link or code.' });
     let p = pid && quiz.players[pid];
     if (!p) {
+      if (quiz.status === 'ended') return ackFn(ack)({ error: 'This quiz has already ended.' });
+      if (quiz.status !== 'lobby') return ackFn(ack)({ error: 'This quiz has already started. Joining mid-way is not allowed.' });
       name = String(name || '').replace(/\s+/g, ' ').trim().slice(0, 30);
       if (!name) return ackFn(ack)({ error: 'Please enter your name.' });
-      if (quiz.status === 'ended') return ackFn(ack)({ error: 'This quiz has already ended.' });
-      if (quiz.status === 'running' && !quiz.settings.allowLateJoin) return ackFn(ack)({ error: 'This quiz has already started.' });
       const taken = new Set(Object.values(quiz.players).map((x) => x.name.toLowerCase()));
       let final = name, n = 2;
       while (taken.has(final.toLowerCase())) final = `${name} (${n++})`;
       pid = rid(8);
-      p = quiz.players[pid] = { name: final, score: 0, correct: 0, totalMs: 0, answers: {}, joinedAt: Date.now(), online: 0 };
+      p = quiz.players[pid] = {
+        name: final,
+        avatar: cleanAvatar(avatar),
+        score: 0, correct: 0, totalMs: 0, answers: {}, joinedAt: Date.now(), online: 0,
+      };
       invalidateRank(quiz);
       save();
     }
@@ -574,19 +610,24 @@ io.on('connection', (socket) => {
     invalidateRank(quiz);
     done({ ok: true });
     hostDirty(quiz); tickDirty(quiz); save();
-    // everybody answered? reveal early (after a short pause)
-    const d = distribution(quiz, quiz.current);
-    if (d.attempted >= playerCount(quiz)) {
-      const cur = quiz.current;
-      setTimeout(() => { if (quiz.phase === 'question' && quiz.current === cur) goReveal(quiz); }, 1200);
-    }
+    // all remaining online players answered? reveal early (after a short pause)
+    maybeEarlyReveal(quiz);
   });
 
   function leavePlayer(s) {
     const quiz = quizzes[s.data.quizId];
     const p = quiz && quiz.players[s.data.pid];
-    if (p) { p.online = Math.max(0, p.online - 1); hostDirty(quiz); }
-    if (quiz) s.leave('play:' + quiz.id);
+    if (p) {
+      p.online = Math.max(0, p.online - 1);
+      hostDirty(quiz);
+      tickDirty(quiz);
+    }
+    if (quiz) {
+      s.leave('play:' + quiz.id);
+      if (quiz.status === 'running' && quiz.phase === 'question') {
+        maybeEarlyReveal(quiz);
+      }
+    }
   }
 
   socket.on('disconnect', () => {

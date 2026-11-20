@@ -695,3 +695,122 @@ tr.highlight-row {
 .hidden {
   display: none !important;
 }
+
+.btn-whatsapp {
+  background: #25d366;
+  color: #06210f;
+  font-weight: 700;
+}
+
+.btn-whatsapp:hover:not(:disabled) {
+  background: #3be078;
+}
+
+/* Winner & End-of-Quiz Rewarding Animations */
+@keyframes winnerPop {
+  0% { opacity: 0; transform: scale(0.82) translateY(14px); }
+  65% { opacity: 1; transform: scale(1.03) translateY(-2px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes trophyFloat {
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50% { transform: translateY(-7px) rotate(3deg); }
+}
+
+@keyframes podiumRise {
+  0% { opacity: 0; transform: translateY(28px) scale(0.92); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 18px rgba(255, 204, 51, 0.25); }
+  50% { box-shadow: 0 0 36px rgba(255, 204, 51, 0.55); }
+}
+
+.winner-banner {
+  margin-top: 14px;
+  padding: 18px 16px;
+  border-radius: 16px;
+  text-align: center;
+  background: linear-gradient(135deg, rgba(255, 204, 51, 0.24), rgba(168, 85, 247, 0.22));
+  border: 2px solid rgba(255, 204, 51, 0.65);
+  animation: winnerPop 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards, glowPulse 2.4s ease-in-out infinite 0.55s;
+}
+
+.winner-trophy {
+  display: inline-block;
+  font-size: 2.5rem;
+  line-height: 1;
+  animation: trophyFloat 2.2s ease-in-out infinite;
+}
+
+.winner-name {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: var(--accent);
+  margin-top: 4px;
+}
+
+.podium-animate .podium-1 {
+  animation: podiumRise 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both, glowPulse 2.4s ease-in-out infinite 0.7s;
+}
+.podium-animate .podium-2 {
+  animation: podiumRise 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.25s both;
+}
+.podium-animate .podium-3 {
+  animation: podiumRise 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.4s both;
+}
+
+/* Player Avatar Picker */
+.avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 8px;
+  margin-top: 6px;
+}
+
+@media (max-width: 520px) {
+  .avatar-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.avatar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  font-size: 1.55rem;
+  border-radius: 12px;
+  border: 2px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.avatar-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.avatar-btn.active {
+  border-color: var(--accent);
+  background: rgba(255, 204, 51, 0.22);
+  box-shadow: 0 0 0 3px rgba(255, 204, 51, 0.22);
+  transform: scale(1.05);
+}
+
+.avatar-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.player-avatar {
+  display: inline-block;
+  margin-right: 6px;
+  font-size: 1.1em;
+}
+
+

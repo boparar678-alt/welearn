@@ -6,6 +6,7 @@
   <title>Host Dashboard — WeLearn</title>
   <link rel="stylesheet" href="/style.css">
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/sfx.js"></script>
 </head>
 <body>
   <div class="container">
@@ -18,6 +19,7 @@
         </span>
       </a>
       <div class="row-actions">
+        <button id="muteBtn" type="button" class="btn btn-secondary btn-sm">🔊 Sound On</button>
         <a href="/" class="btn btn-secondary btn-sm">New Quiz</a>
         <a id="exportCsvBtn" href="#" class="btn btn-secondary btn-sm hidden">Export Results CSV</a>
       </div>
@@ -131,6 +133,21 @@
         </div>
       </section>
 
+      <!-- Winner / Final Announcement Card -->
+      <section id="winnerCard" class="card hidden">
+        <div class="topbar" style="margin-bottom: 8px;">
+          <span class="badge badge-ended">QUIZ FINISHED</span>
+          <button id="copyWinnerWhatsappBtn" type="button" class="btn btn-whatsapp btn-sm">Copy Leaderboard for WhatsApp</button>
+        </div>
+        <div id="hostWinnerBanner" class="winner-banner">
+          <div class="winner-trophy">🏆</div>
+          <div class="stat-label" style="margin-top: 6px; color: var(--text);">Winner Announcement</div>
+          <div id="hostWinnerName" class="winner-name"></div>
+          <div id="hostWinnerSub" class="muted" style="font-size: 0.9rem; margin-top: 2px;"></div>
+        </div>
+        <div id="hostPodium" class="podium podium-animate"></div>
+      </section>
+
       <!-- Attempt Tracking -->
       <section id="attemptsCard" class="card hidden">
         <div class="topbar" style="margin-bottom: 10px;">
@@ -180,7 +197,10 @@
         <section class="card" style="margin-top: 0;">
           <div class="topbar" style="margin-bottom: 8px;">
             <h2 style="margin: 0;">Live Leaderboard</h2>
-            <input id="lbSearch" type="search" placeholder="Search player…" style="width: 180px;">
+            <div class="row-actions">
+              <button id="copyLbWhatsappBtn" type="button" class="btn btn-whatsapp btn-sm">Copy for WhatsApp</button>
+              <input id="lbSearch" type="search" placeholder="Search player…" style="width: 165px;">
+            </div>
           </div>
           <div class="table-wrap" style="max-height: 420px; overflow-y: auto;">
             <table>
@@ -242,6 +262,9 @@
       let clockOffsetMs = 0;
       let inspectedQuestion = null; // { qIndex, attempts, notAttempted, question }
       let activeAttemptTab = 'attempted';
+      let lastLbSig = '';
+      let hasLoadedOnce = false;
+      let celebratedEnd = false;
       let socket = null;
 
       const keyPromptCard = document.getElementById('keyPromptCard');
@@ -301,6 +324,18 @@
       const lbSearch = document.getElementById('lbSearch');
       const leaderboardBody = document.getElementById('leaderboardBody');
       const questionsBody = document.getElementById('questionsBody');
+      const winnerCard = document.getElementById('winnerCard');
+      const hostWinnerBanner = document.getElementById('hostWinnerBanner');
+      const hostWinnerName = document.getElementById('hostWinnerName');
+      const hostWinnerSub = document.getElementById('hostWinnerSub');
+      const hostPodium = document.getElementById('hostPodium');
+      const copyWinnerWhatsappBtn = document.getElementById('copyWinnerWhatsappBtn');
+      const copyLbWhatsappBtn = document.getElementById('copyLbWhatsappBtn');
+      const muteBtn = document.getElementById('muteBtn');
+
+      if (window.WeLearnFX) {
+        window.WeLearnFX.bindMuteButton(muteBtn);
+      }
 
       function esc(s) {
         return String(s ?? '')
@@ -430,6 +465,44 @@
           liveCard.classList.add('hidden');
         }
 
+        if (s.status === 'ended') {
+          winnerCard.classList.remove('hidden');
+          const top = s.top || [];
+          if (top.length > 0) {
+            hostWinnerBanner.classList.remove('hidden');
+            hostWinnerName.textContent = (top[0].avatar ? top[0].avatar + ' ' : '') + top[0].name;
+            hostWinnerSub.textContent = top[0].score.toLocaleString() + ' pts · ' + top[0].correct + ' correct';
+          } else {
+            hostWinnerBanner.classList.add('hidden');
+          }
+          const order = [top[1], top[0], top[2]].filter(Boolean);
+          const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
+          hostPodium.innerHTML = order.map((p) => {
+            return '<div class="podium-step podium-' + p.rank + '">' +
+              '<div class="podium-medal">' + (medals[p.rank] || '#' + p.rank) + '</div>' +
+              '<div class="podium-name"><span class="player-avatar">' + esc(p.avatar || '🦊') + '</span>' + esc(p.name) + '</div>' +
+              '<div class="podium-score">' + p.score + ' pts</div>' +
+              '</div>';
+          }).join('');
+          if (!celebratedEnd) {
+            celebratedEnd = true;
+            if (window.WeLearnFX) {
+              window.WeLearnFX.launchCelebration();
+              window.WeLearnFX.playFanfare();
+            }
+          }
+        } else {
+          winnerCard.classList.add('hidden');
+          celebratedEnd = false;
+        }
+
+        const lbSig = (s.leaderboard || []).map((p) => p.pid + ':' + p.rank + ':' + p.score).join('|');
+        if (hasLoadedOnce && s.status === 'running' && lbSig !== lastLbSig && (s.leaderboard || []).some((p) => p.score > 0)) {
+          if (window.WeLearnFX) window.WeLearnFX.playLeaderboardChange();
+        }
+        lastLbSig = lbSig;
+        hasLoadedOnce = true;
+
         // If live question is active and user isn't manually inspecting another question, show current attempts
         if (s.status === 'running' && s.current) {
           if (!inspectedQuestion || inspectedQuestion.liveAuto) {
@@ -469,7 +542,7 @@
         attemptedBody.innerHTML = att.length === 0
           ? '<tr><td colspan="5" class="muted">No attempts yet.</td></tr>'
           : att.map((a) => '<tr>' +
-              '<td>' + esc(a.name) + '</td>' +
+              '<td><span class="player-avatar">' + esc(a.avatar || '🦊') + '</span>' + esc(a.name) + '</td>' +
               '<td><strong>' + (LETTERS[a.c] || '?') + '</strong></td>' +
               '<td>' + (a.ok ? '<span class="badge badge-good">Correct</span>' : '<span class="badge badge-bad">Wrong</span>') + '</td>' +
               '<td>' + (a.ms / 1000).toFixed(2) + 's</td>' +
@@ -479,7 +552,7 @@
         notAttemptedBody.innerHTML = notAtt.length === 0
           ? '<tr><td colspan="2" class="muted">Everyone has attempted!</td></tr>'
           : notAtt.map((p) => '<tr>' +
-              '<td>' + esc(p.name) + '</td>' +
+              '<td><span class="player-avatar">' + esc(p.avatar || '🦊') + '</span>' + esc(p.name) + '</td>' +
               '<td><span class="dot ' + (p.online ? 'online' : '') + '"></span> ' + (p.online ? 'Online' : 'Offline') + '</td>' +
               '</tr>').join('');
       }
@@ -492,7 +565,7 @@
           ? '<tr><td colspan="6" class="muted">No players yet. Share the join link or QR code!</td></tr>'
           : rows.map((p) => '<tr>' +
               '<td><strong>#' + p.rank + '</strong></td>' +
-              '<td>' + esc(p.name) + '</td>' +
+              '<td><span class="player-avatar">' + esc(p.avatar || '🦊') + '</span>' + esc(p.name) + '</td>' +
               '<td><strong>' + p.score + '</strong></td>' +
               '<td>' + p.correct + '/' + p.answered + '</td>' +
               '<td><span class="dot ' + (p.online ? 'online' : '') + '"></span></td>' +
@@ -604,14 +677,28 @@
 
       copyLinkBtn.addEventListener('click', async () => {
         const url = joinUrlText.textContent;
-        try {
-          await navigator.clipboard.writeText(url);
+        const ok = window.WeLearnFX ? await window.WeLearnFX.copyText(url) : false;
+        if (ok) {
           copyLinkBtn.textContent = 'Copied!';
           setTimeout(() => { copyLinkBtn.textContent = 'Copy Join Link'; }, 1500);
-        } catch {
+        } else {
           actionMsg.textContent = 'Copy link: ' + url;
         }
       });
+
+      async function handleCopyLeaderboard(btn, defaultLabel) {
+        if (!state || !window.WeLearnFX) return;
+        const list = (state.leaderboard || [])
+          .filter((p) => p.answered > 0)
+          .map((p, idx) => ({ ...p, rank: idx + 1 }));
+        const text = window.WeLearnFX.formatWhatsAppLeaderboard(state.title, list);
+        const ok = await window.WeLearnFX.copyText(text);
+        btn.textContent = ok ? 'Copied for WhatsApp!' : 'Copy failed';
+        setTimeout(() => { btn.textContent = defaultLabel; }, 1800);
+      }
+
+      copyWinnerWhatsappBtn.addEventListener('click', () => handleCopyLeaderboard(copyWinnerWhatsappBtn, 'Copy Leaderboard for WhatsApp'));
+      copyLbWhatsappBtn.addEventListener('click', () => handleCopyLeaderboard(copyLbWhatsappBtn, 'Copy for WhatsApp'));
 
       // Smooth timer ticker
       setInterval(() => {

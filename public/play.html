@@ -6,6 +6,7 @@
   <title>Play — WeLearn</title>
   <link rel="stylesheet" href="/style.css">
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/sfx.js"></script>
 </head>
 <body>
   <div class="container-narrow">
@@ -17,7 +18,10 @@
           <span class="brand-sub">by ASPIRA</span>
         </span>
       </a>
-      <span id="playerHeaderBadge" class="badge hidden"></span>
+      <div class="row-actions">
+        <span id="playerHeaderBadge" class="badge hidden"></span>
+        <button id="muteBtn" type="button" class="btn btn-secondary btn-sm">🔊 Sound On</button>
+      </div>
     </header>
 
     <!-- Join Screen -->
@@ -34,6 +38,10 @@
           <label class="field-label" for="nameInput">Your Name</label>
           <input id="nameInput" type="text" maxlength="30" placeholder="Enter your nickname" autocomplete="nickname">
         </div>
+        <div style="margin-top: 14px;">
+          <label class="field-label">Choose Your Avatar</label>
+          <div id="avatarGrid" class="avatar-grid" role="radiogroup" aria-label="Choose your avatar"></div>
+        </div>
         <div id="joinErr" class="alert alert-error hidden"></div>
         <button id="joinBtn" type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 16px;">Join Quiz</button>
       </form>
@@ -41,6 +49,7 @@
 
     <!-- Lobby Screen -->
     <section id="lobbyCard" class="card hidden" style="text-align: center; padding: 34px 20px;">
+      <div id="lobbyAvatar" style="font-size: 3rem; line-height: 1; margin-bottom: 8px;">🦊</div>
       <span class="badge badge-lobby" style="margin-bottom: 10px;">IN THE LOBBY</span>
       <h1 id="lobbyTitle">Quiz</h1>
       <p class="muted" style="margin-bottom: 18px;">Waiting for the host to press Start…</p>
@@ -104,9 +113,6 @@
         </div>
       </div>
 
-      <h3 style="margin-top: 18px;">Answer Distribution</h3>
-      <div id="revealDist"></div>
-
       <h3 style="margin-top: 18px;">Top 10 Leaderboard</h3>
       <div class="table-wrap">
         <table>
@@ -136,7 +142,14 @@
         </div>
       </div>
 
-      <div id="podium" class="podium"></div>
+      <div id="winnerBanner" class="winner-banner hidden">
+        <div class="winner-trophy">🏆</div>
+        <div class="stat-label" style="margin-top: 6px; color: var(--text);">Quiz Champion</div>
+        <div id="winnerName" class="winner-name"></div>
+        <div id="winnerSub" class="muted" style="font-size: 0.88rem; margin-top: 2px;"></div>
+      </div>
+
+      <div id="podium" class="podium podium-animate"></div>
 
       <h3 style="margin-top: 18px;">Final Top 10</h3>
       <div class="table-wrap">
@@ -157,7 +170,9 @@
   <script>
     (function () {
       const LETTERS = 'ABCDEF';
-      const COLORS = ['#e21b3c', '#1368ce', '#d89e00', '#26890c', '#7b2cbf', '#e66a00'];
+
+      const AVATARS = ['🦊', '🐼', '🦁', '🐯', '🐸', '🦉', '🦄', '🐙', '🐝', '🦋', '🚀', '⚡', '🎯', '🌟', '🔥', '🧠'];
+      const AVATAR_KEY = 'welearn_player_avatar';
 
       const pathParts = window.location.pathname.split('/').filter(Boolean);
       const urlCode = (pathParts[1] || '').toUpperCase().trim();
@@ -168,12 +183,14 @@
       const codeFieldWrap = document.getElementById('codeFieldWrap');
       const codeInput = document.getElementById('codeInput');
       const nameInput = document.getElementById('nameInput');
+      const avatarGrid = document.getElementById('avatarGrid');
       const joinForm = document.getElementById('joinForm');
       const joinErr = document.getElementById('joinErr');
       const joinBtn = document.getElementById('joinBtn');
 
       const playerHeaderBadge = document.getElementById('playerHeaderBadge');
       const lobbyCard = document.getElementById('lobbyCard');
+      const lobbyAvatar = document.getElementById('lobbyAvatar');
       const lobbyTitle = document.getElementById('lobbyTitle');
       const lobbyPlayers = document.getElementById('lobbyPlayers');
       const countdownCard = document.getElementById('countdownCard');
@@ -196,26 +213,57 @@
       const explanationText = document.getElementById('explanationText');
       const revealMyScore = document.getElementById('revealMyScore');
       const revealMyRank = document.getElementById('revealMyRank');
-      const revealDist = document.getElementById('revealDist');
       const revealTopBody = document.getElementById('revealTopBody');
 
       const endedCard = document.getElementById('endedCard');
       const endedTitle = document.getElementById('endedTitle');
       const finalRank = document.getElementById('finalRank');
       const finalScore = document.getElementById('finalScore');
+      const winnerBanner = document.getElementById('winnerBanner');
+      const winnerName = document.getElementById('winnerName');
+      const winnerSub = document.getElementById('winnerSub');
       const podium = document.getElementById('podium');
       const finalTopBody = document.getElementById('finalTopBody');
+      const muteBtn = document.getElementById('muteBtn');
+
+      if (window.WeLearnFX) {
+        window.WeLearnFX.bindMuteButton(muteBtn);
+      }
 
       let activeCode = urlCode;
       let pid = null;
+      let selectedAvatar = localStorage.getItem(AVATAR_KEY);
+      if (!AVATARS.includes(selectedAvatar)) {
+        selectedAvatar = AVATARS[Math.floor(Math.random() * AVATARS.length)];
+      }
       let state = null;
       let you = null;
       let selectedChoice = null;
       let pendingChoiceQ = -1;
       let lastRenderedQ = -1;
       let lastRenderedPhase = null;
+      let lastSfxRevealQ = -1;
+      let lastTopSig = '';
+      let celebratedEnd = false;
       let clockOffsetMs = 0;
       let socket = null;
+
+      function renderAvatarPicker(disabled) {
+        avatarGrid.innerHTML = AVATARS.map((av) => {
+          const isSel = av === selectedAvatar;
+          return '<button type="button" class="avatar-btn ' + (isSel ? 'active' : '') + '" data-avatar="' + av + '" aria-checked="' + (isSel ? 'true' : 'false') + '" role="radio"' + (disabled ? ' disabled' : '') + '>' + av + '</button>';
+        }).join('');
+      }
+      renderAvatarPicker(false);
+
+      avatarGrid.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-avatar]');
+        if (!btn || btn.disabled) return;
+        selectedAvatar = btn.getAttribute('data-avatar');
+        localStorage.setItem(AVATAR_KEY, selectedAvatar);
+        if (window.WeLearnFX) window.WeLearnFX.playTap();
+        renderAvatarPicker(false);
+      });
 
       function esc(s) {
         return String(s ?? '')
@@ -237,9 +285,33 @@
         try {
           const res = await fetch('/api/join/' + encodeURIComponent(code));
           const data = await res.json();
-          if (res.ok) {
-            joinQuizTitle.textContent = data.title;
-            joinQuizMeta.textContent = data.total + ' questions · ' + data.players + ' player(s) joined';
+          if (!res.ok) {
+            joinErr.className = 'alert alert-error';
+            joinErr.textContent = data.error || 'Quiz not found. Check the link or code.';
+            joinErr.classList.remove('hidden');
+            nameInput.disabled = true;
+            joinBtn.disabled = true;
+            renderAvatarPicker(true);
+            return;
+          }
+          joinQuizTitle.textContent = data.title;
+          joinQuizMeta.textContent = data.total + ' questions · ' + data.players + ' player(s) joined';
+          if (data.status === 'running') {
+            joinErr.className = 'alert alert-warn';
+            joinErr.textContent = 'Notice: This quiz has already started. New players cannot join mid-way.';
+            joinErr.classList.remove('hidden');
+            nameInput.disabled = true;
+            joinBtn.disabled = true;
+            joinBtn.textContent = 'Quiz Already Started';
+            renderAvatarPicker(true);
+          } else if (data.status === 'ended') {
+            joinErr.className = 'alert alert-error';
+            joinErr.textContent = 'Notice: This quiz has already ended.';
+            joinErr.classList.remove('hidden');
+            nameInput.disabled = true;
+            joinBtn.disabled = true;
+            joinBtn.textContent = 'Quiz Ended';
+            renderAvatarPicker(true);
           }
         } catch {}
       }
@@ -272,8 +344,14 @@
         socket.on('kicked', () => {
           if (activeCode) localStorage.removeItem(pidStorageKey(activeCode));
           pid = null; state = null; you = null; selectedChoice = null; pendingChoiceQ = -1;
+          lastSfxRevealQ = -1; lastTopSig = ''; celebratedEnd = false;
+          nameInput.disabled = false;
+          joinBtn.disabled = false;
+          joinBtn.textContent = 'Join Quiz';
+          renderAvatarPicker(false);
           hideAllScreens();
           joinCard.classList.remove('hidden');
+          joinErr.className = 'alert alert-error';
           joinErr.textContent = 'You were removed from this quiz by the host.';
           joinErr.classList.remove('hidden');
           playerHeaderBadge.classList.add('hidden');
@@ -281,8 +359,14 @@
         socket.on('reset', () => {
           if (activeCode) localStorage.removeItem(pidStorageKey(activeCode));
           pid = null; state = null; you = null; selectedChoice = null; pendingChoiceQ = -1;
+          lastSfxRevealQ = -1; lastTopSig = ''; celebratedEnd = false;
+          nameInput.disabled = false;
+          joinBtn.disabled = false;
+          joinBtn.textContent = 'Join Quiz';
+          renderAvatarPicker(false);
           hideAllScreens();
           joinCard.classList.remove('hidden');
+          joinErr.className = 'alert alert-warn';
           joinErr.textContent = 'The host reset the quiz. Enter your name to join the new session.';
           joinErr.classList.remove('hidden');
           playerHeaderBadge.classList.add('hidden');
@@ -300,7 +384,7 @@
       function emitJoin(code, name, savedPid, silent) {
         const s = initSocket();
         joinErr.classList.add('hidden');
-        s.emit('player:join', { code, name, pid: savedPid }, (res) => {
+        s.emit('player:join', { code, name, avatar: selectedAvatar, pid: savedPid }, (res) => {
           if (!res || res.error) {
             if (savedPid) {
               localStorage.removeItem(pidStorageKey(code));
@@ -342,6 +426,7 @@
       function submitAnswer(choiceIdx) {
         if (!socket || !state || state.phase !== 'question') return;
         if (selectedChoice !== null && pendingChoiceQ === state.qIndex) return;
+        if (window.WeLearnFX) window.WeLearnFX.playTap();
         selectedChoice = choiceIdx;
         pendingChoiceQ = state.qIndex;
         renderQuestionTiles();
@@ -383,7 +468,7 @@
           const isMe = myName && row.name === myName;
           return '<tr class="' + (isMe ? 'highlight-row' : '') + '">' +
             '<td><strong>#' + row.rank + '</strong></td>' +
-            '<td>' + esc(row.name) + (isMe ? ' (You)' : '') + '</td>' +
+            '<td><span class="player-avatar">' + esc(row.avatar || '🦊') + '</span>' + esc(row.name) + (isMe ? ' (You)' : '') + '</td>' +
             (tbody === finalTopBody ? '<td>' + row.correct + '</td>' : '') +
             '<td><strong>' + row.score + '</strong></td>' +
             '</tr>';
@@ -395,12 +480,13 @@
         hideAllScreens();
 
         if (you) {
-          playerHeaderBadge.textContent = you.name + ' · ' + you.score + ' pts';
+          playerHeaderBadge.textContent = (you.avatar ? you.avatar + ' ' : '') + you.name + ' · ' + you.score + ' pts';
           playerHeaderBadge.classList.remove('hidden');
         }
 
         if (state.status === 'lobby') {
           lobbyCard.classList.remove('hidden');
+          lobbyAvatar.textContent = (you && you.avatar) || selectedAvatar || '🦊';
           lobbyTitle.textContent = state.title;
           lobbyPlayers.textContent = state.players;
           return;
@@ -468,22 +554,24 @@
           revealMyScore.textContent = you ? you.score : 0;
           revealMyRank.textContent = you && you.rank ? '#' + you.rank + ' / ' + you.players : '-';
 
-          const dist = state.dist || [];
-          const att = state.attempted || 0;
-          revealDist.innerHTML = state.question.options.map((opt, i) => {
-            const count = dist[i] || 0;
-            const pct = att > 0 ? Math.round((count / att) * 100) : 0;
-            const isCorr = i === state.answer;
-            return '<div class="host-opt ' + (isCorr ? 'is-correct' : '') + '">' +
-              '<div class="host-opt-bar" style="width:' + pct + '%; background:' + COLORS[i % COLORS.length] + ';"></div>' +
-              '<div class="host-opt-inner">' +
-                '<div><strong>' + LETTERS[i] + '.</strong> ' + esc(opt) + '</div>' +
-                '<div><strong>' + count + '</strong></div>' +
-              '</div>' +
-              '</div>';
-          }).join('');
-
           renderTopTable(revealTopBody, state.top);
+
+          const topSig = (state.top || []).map((r) => r.name + ':' + r.score).join('|');
+          const lbChanged = topSig !== lastTopSig && (state.top || []).length > 0;
+          if (lastSfxRevealQ !== state.qIndex && you && you.qIndex === state.qIndex) {
+            lastSfxRevealQ = state.qIndex;
+            if (window.WeLearnFX) {
+              if (myAns && myAns.ok) window.WeLearnFX.playCorrect();
+              else window.WeLearnFX.playWrong();
+              if (lbChanged) {
+                setTimeout(() => window.WeLearnFX.playLeaderboardChange(), 460);
+              }
+            }
+            lastTopSig = topSig;
+          } else if (lbChanged) {
+            lastTopSig = topSig;
+            if (window.WeLearnFX) window.WeLearnFX.playLeaderboardChange();
+          }
           return;
         }
 
@@ -495,17 +583,33 @@
           finalScore.textContent = you ? you.score : 0;
 
           const top = state.top || [];
+          if (top.length > 0) {
+            winnerBanner.classList.remove('hidden');
+            winnerName.textContent = (top[0].avatar ? top[0].avatar + ' ' : '') + top[0].name;
+            winnerSub.textContent = top[0].score.toLocaleString() + ' pts · ' + top[0].correct + ' correct';
+          } else {
+            winnerBanner.classList.add('hidden');
+          }
+
           const order = [top[1], top[0], top[2]].filter(Boolean);
           const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
           podium.innerHTML = order.map((p) => {
             return '<div class="podium-step podium-' + p.rank + '">' +
               '<div class="podium-medal">' + (medals[p.rank] || '#' + p.rank) + '</div>' +
-              '<div class="podium-name">' + esc(p.name) + '</div>' +
+              '<div class="podium-name"><span class="player-avatar">' + esc(p.avatar || '🦊') + '</span>' + esc(p.name) + '</div>' +
               '<div class="podium-score">' + p.score + ' pts</div>' +
               '</div>';
           }).join('');
 
           renderTopTable(finalTopBody, top);
+
+          if (!celebratedEnd) {
+            celebratedEnd = true;
+            if (window.WeLearnFX) {
+              window.WeLearnFX.launchCelebration();
+              window.WeLearnFX.playFanfare();
+            }
+          }
         }
       }
 

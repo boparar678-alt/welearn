@@ -67,14 +67,13 @@
           <span>Speed bonus (500–1000 pts)</span>
         </label>
         <label class="toggle">
-          <input id="allowLateJoin" type="checkbox" checked>
-          <span>Allow late join</span>
-        </label>
-        <label class="toggle">
           <input id="shuffleQuestions" type="checkbox">
           <span>Shuffle questions</span>
         </label>
       </div>
+      <p class="muted" style="font-size: 0.82rem; margin: 10px 0 0;">
+        Joining locks automatically once you start the quiz (no mid-way joins). If players disconnect, the quiz continues automatically with the remaining players.
+      </p>
 
       <div class="grid-2" style="margin-top: 18px;">
         <div>
@@ -207,6 +206,16 @@
           const data = await res.json();
           if (!res.ok) {
             joinError.textContent = data.error || 'Quiz not found.';
+            joinError.classList.remove('hidden');
+            return;
+          }
+          if (data.status === 'running') {
+            joinError.textContent = 'This quiz has already started. New players cannot join mid-way.';
+            joinError.classList.remove('hidden');
+            return;
+          }
+          if (data.status === 'ended') {
+            joinError.textContent = 'This quiz has already ended.';
             joinError.classList.remove('hidden');
             return;
           }
@@ -350,7 +359,7 @@
           defaultTime: parseInt(document.getElementById('defaultTime').value, 10) || 20,
           revealTime: parseInt(document.getElementById('revealTime').value, 10) || 6,
           speedBonus: document.getElementById('speedBonus').checked,
-          allowLateJoin: document.getElementById('allowLateJoin').checked,
+          allowLateJoin: false,
           shuffleQuestions: document.getElementById('shuffleQuestions').checked,
           questions: parsedResult.questions.map((q) => ({
             q: q.q,
